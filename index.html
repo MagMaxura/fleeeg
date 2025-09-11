@@ -1,0 +1,170 @@
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.0.0/",
+    "react/": "https://esm.sh/react@^19.0.0/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.51.0"
+  }
+}
+</script>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fletapp</title>
+    
+    <!-- PWA Tags (Manifest deshabilitado temporalmente para desarrollo) -->
+    <!-- <link rel="manifest" href="manifest.json" /> -->
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="theme-color" content="#f59e0b" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SDK de Mercado Pago -->
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <style>
+      body {
+        font-family: 'Be Vietnam Pro', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+        background-color: #020617; /* Fallback */
+      }
+      .fletapp-text-gradient {
+        background: linear-gradient(120deg, #fde047, #f59e0b, #d97706);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-fill-color: transparent;
+      }
+      .fletapp-gold-gradient {
+         background: linear-gradient(120deg, #fde047, #f59e0b, #d97706);
+      }
+      
+      /* --- DYNAMIC BACKGROUND --- */
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        background: radial-gradient(circle at 15% 25%, rgba(2, 86, 114, 0.4), transparent 40%),
+                    radial-gradient(circle at 85% 75%, rgba(13, 76, 129, 0.4), transparent 40%);
+        background-color: #020617;
+        animation: subtle-float 25s infinite ease-in-out alternate;
+        z-index: -1;
+        transition: background 0.5s;
+      }
+
+      /* --- ANIMATIONS --- */
+      @keyframes subtle-float {
+        0% { transform: translate(0, 0); }
+        100% { transform: translate(5vw, -5vh); }
+      }
+
+      @keyframes fadeSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+      }
+
+      @keyframes staggeredFadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes skeleton-shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+
+      @keyframes ripple {
+        to {
+          transform: scale(4);
+          opacity: 0;
+        }
+      }
+      
+      @keyframes slideInFromLeft {
+        from { opacity: 0; transform: translateX(-50px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes slideInFromRight {
+        from { opacity: 0; transform: translateX(50px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      
+      @keyframes truck-accelerate-exit {
+        0% { transform: translate(0, 0) scale(1); opacity: 1; }
+        10% { transform: translate(-2px, 0) rotate(-0.5deg); }
+        20% { transform: translate(2px, 0) rotate(0.5deg); }
+        100% { transform: translate(150vw, -20px) scale(1.15); opacity: 0; }
+      }
+      
+      @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      
+      @keyframes shake {
+        10%, 90% { transform: translate3d(-1px, 0, 0); }
+        20%, 80% { transform: translate3d(2px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+        40%, 60% { transform: translate3d(4px, 0, 0); }
+      }
+
+      /* Animation Utility Classes */
+      .animate-fadeSlideIn {
+        animation: fadeSlideIn 0.6s ease-out forwards;
+      }
+
+      .staggered-child {
+        opacity: 0;
+        animation: staggeredFadeInUp 0.7s ease-out forwards;
+      }
+      
+      .animate-slideInFromLeft {
+        animation: slideInFromLeft 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        opacity: 0;
+      }
+      
+      .animate-slideInFromRight {
+        animation: slideInFromRight 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        opacity: 0;
+      }
+
+      .animate-truck-exit {
+        animation: truck-accelerate-exit 1.2s cubic-bezier(0.5, -0.28, 0.74, 0.05) forwards;
+      }
+      
+      .animate-fadeOut {
+        animation: fadeOut 0.5s ease-out forwards;
+      }
+      
+      .animate-shake {
+        animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
+      }
+
+      .animate-fadeInUp {
+        animation: staggeredFadeInUp 0.5s ease-out forwards;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Fletapp",
+  "description": "A freight and shipping application that connects clients with drivers, similar to Rappi and Uber for cargo. Users can register as drivers or clients, manage shipments, and view driver rankings.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "prompt": ""
+}

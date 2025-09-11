@@ -1,0 +1,63 @@
+import React, { useContext, useEffect } from 'react';
+import { AppContext } from '../../AppContext';
+import { Spinner } from '../ui';
+import CustomerDashboard from './dashboards/CustomerDashboard';
+import DriverDashboard from './dashboards/DriverDashboard';
+// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
+import type { View } from '../../types';
+
+const DashboardView: React.FC = () => {
+    const context = useContext(AppContext);
+    const user = context?.user;
+
+    useEffect(() => {
+        // Si el usuario existe pero no tiene un rol, su perfil está incompleto.
+        // Lo redirigimos a la página de perfil para que pueda completar sus datos.
+        if (user && !user.role && context?.setView) {
+            context.setView('profile' as View);
+        }
+    }, [user, context?.setView]);
+
+
+    if (!context || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <Spinner />
+            </div>
+        );
+    }
+    
+    // Mientras se procesa la redirección, mostramos un mensaje amigable.
+    if (!user.role) {
+        return (
+             <div className="container mx-auto p-4 md:p-8 animate-fadeSlideIn">
+                <h1 className="text-2xl font-bold text-slate-100">Perfil Incompleto</h1>
+                <p className="text-slate-300 mt-2">Hemos detectado que tu registro no se completó. Redirigiendo para que completes tus datos...</p>
+                 <div className="mt-4">
+                    <Spinner />
+                 </div>
+            </div>
+        );
+    }
+
+
+    // Render different dashboards based on the user's role
+    if (user.role === 'customer') {
+        return <CustomerDashboard />;
+    }
+    
+    if (user.role === 'driver') {
+        return <DriverDashboard />;
+    }
+
+    // Fallback de seguridad, aunque no debería alcanzarse con la nueva lógica.
+    return (
+        <div className="container mx-auto p-4 md:p-8">
+            <h1 className="text-2xl font-bold">Panel de Control</h1>
+            <p className="text-slate-300">Bienvenido, {user.full_name || 'usuario'}.</p>
+            <p className="text-red-500 mt-4">Error: Rol de usuario no reconocido. Por favor, completa tu perfil.</p>
+        </div>
+    );
+};
+
+export default DashboardView;
