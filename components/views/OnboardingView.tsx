@@ -1,7 +1,9 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { UserRole, Profile, VehicleType } from '../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select } from '../ui';
 
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
@@ -51,6 +53,7 @@ const OnboardingView: React.FC = () => {
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiKeyMissing, setApiKeyMissing] = useState(false);
   
   const [formState, setFormState] = useState<{[key: string]: any}>({});
 
@@ -92,16 +95,24 @@ const OnboardingView: React.FC = () => {
 
 
   useEffect(() => {
-    let apiKey: string | undefined;
-    try {
-        // Safely access env vars in environments without a build step
-        const env = (import.meta as any).env;
-        apiKey = env?.VITE_GOOGLE_MAPS_API_KEY;
-    } catch (e) {
-        console.warn("Could not access VITE_GOOGLE_MAPS_API_KEY. Address autocomplete will be disabled.");
-    }
+    // =================================================================================
+    // !! ACTION REQUIRED TO ENABLE ADDRESS AUTOCOMPLETE !!
+    // =================================================================================
+    // To enable Google Maps address autocomplete, you must provide your own API key.
+    // 1. Get a key: https://developers.google.com/maps/documentation/javascript/get-api-key
+    // 2. Paste it into the `apiKey` variable below.
+    // 3. For production, it's recommended to use environment variables.
+    // =================================================================================
+    const apiKey = "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
 
-    if ((role === 'driver' || role === 'customer') && apiKey) {
+    if (!apiKey) {
+        console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");
+        setApiKeyMissing(true);
+        return;
+    }
+    setApiKeyMissing(false);
+
+    if (role === 'driver' || role === 'customer') {
       loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
         .then(() => initAutocomplete())
         .catch(err => console.error("Could not load Google Maps script", err));
@@ -278,7 +289,12 @@ const OnboardingView: React.FC = () => {
             <Input name="password" label="Contraseña" type="password" required minLength={6} onChange={handleInputChange} />
             <Input name="confirmPassword" label="Confirmar Contraseña" type="password" required onChange={handleInputChange} />
             <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} />
-            <Input name="address" label="Dirección Registrada" required onChange={handleInputChange} ref={addressRef} value={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
+            <div>
+              <Input name="address" label="Dirección Registrada" required onChange={handleInputChange} ref={addressRef} value={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
+              {apiKeyMissing && (
+                <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Agrega tu API key en <strong>OnboardingView.tsx</strong> para activarlo.</p>
+              )}
+            </div>
             
             <div className="flex items-center gap-6 pt-2">
               <img src={photoPreview || 'https://ui-avatars.com/api/?name=?&background=0f172a&color=fff&size=96'} alt="Profile preview" className="w-24 h-24 rounded-full object-cover bg-slate-800 border-2 border-slate-700"/>

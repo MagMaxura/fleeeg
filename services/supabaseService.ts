@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-// FIX: The Supabase client was previously untyped due to a module resolution issue.
-// Importing the 'Database' type from the central 'types.ts' file ensures the client
-// is correctly typed, making it the single source of truth and resolving the 'type never' errors.
-import type { Database } from '../types';
+// FIX: Import the Database type from the central types.ts file to break the circular dependency.
+// This ensures the Supabase client is correctly typed at initialization, resolving the 'never' type errors.
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Explicitly adding the .ts extension to resolve a subtle module resolution issue that was causing the client to become untyped.
+import type { Database } from '../src/types.ts';
+
 
 // --- Supabase Client Initialization ---
 

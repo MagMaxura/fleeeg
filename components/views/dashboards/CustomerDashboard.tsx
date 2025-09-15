@@ -1,9 +1,10 @@
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AppContext } from '../../../AppContext';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { Trip, NewTrip } from '../../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+import type { Trip, NewTrip } from '../../../src/types.ts';
 import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui';
-import { getTripEstimates } from '../../../services/geminiService';
 
 declare global {
   interface Window {
@@ -51,9 +52,11 @@ const CreateTripForm: React.FC = () => {
     const context = useContext(AppContext);
     const [tripData, setTripData] = useState<Partial<NewTrip & { estimated_drive_time_min?: number, distance_km?: number }>>({});
     const [isEstimating, setIsEstimating] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [estimate, setEstimate] = useState<any>(null);
     const [error, setError] = useState('');
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+    const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
     const mapRef = useRef<HTMLDivElement>(null);
     const originRef = useRef<HTMLInputElement>(null);
@@ -62,14 +65,20 @@ const CreateTripForm: React.FC = () => {
     const destinationAutocompleteRef = useRef<any>(null);
     const mapInstanceRef = useRef<any>(null);
     const directionsRendererRef = useRef<any>(null);
+    
+    // State to hold confirmed places from autocomplete
+    const [originPlace, setOriginPlace] = useState<any>(null);
+    const [destinationPlace, setDestinationPlace] = useState<any>(null);
 
     useEffect(() => {
-        let apiKey: string | undefined;
-        try {
-            const env = (import.meta as any).env;
-            apiKey = env?.VITE_GOOGLE_MAPS_API_KEY;
-        } catch(e) { console.warn("VITE_GOOGLE_MAPS_API_KEY not found."); }
-        if (!apiKey) return;
+        const apiKey = "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
+
+        if (!apiKey) {
+            console.warn("Google Maps API Key not provided. Map features will be disabled.");
+            setApiKeyMissing(true);
+            return;
+        }
+        setApiKeyMissing(false);
 
         const loadScript = (src: string, id: string) => {
             return new Promise<void>((resolve, reject) => {
@@ -160,12 +169,27 @@ const CreateTripForm: React.FC = () => {
                 if (inputRef.current && !autocompleteRef.current) {
                     autocompleteRef.current = new window.google.maps.places.Autocomplete(
                         inputRef.current,
-                        { types: ['address'], componentRestrictions: { country: 'AR' }, fields: ['formatted_address'] }
+                        { types: ['address'], componentRestrictions: { country: 'AR' }, fields: ['formatted_address', 'address_components', 'place_id', 'geometry'] }
                     );
                     autocompleteRef.current.addListener('place_changed', () => {
                         const place = autocompleteRef.current.getPlace();
                         if (place && place.formatted_address) {
-                            handleInputChange({ target: { name: fieldName, value: place.formatted_address } } as any);
+                            const components = place.address_components || [];
+                            const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
+                            
+                            const update: { [key: string]: any } = {
+                                [fieldName]: place.formatted_address,
+                                [`${fieldName}_city`]: get('locality'),
+                                [`${fieldName}_province`]: get('administrative_area_level_1'),
+                            };
+                            
+                            setTripData(prev => ({...prev, ...update}));
+
+                            if (fieldName === 'origin') {
+                                setOriginPlace(place);
+                            } else {
+                                setDestinationPlace(place);
+                            }
                         }
                     });
                 }
@@ -190,15 +214,25 @@ const CreateTripForm: React.FC = () => {
     
     useEffect(() => {
         const calculateRoute = () => {
-            if (!mapInstanceRef.current || !tripData.origin || !tripData.destination) return;
+            // Guard against running without valid, confirmed places
+            if (!window.google || !mapInstanceRef.current || !originPlace || !destinationPlace) {
+                if (directionsRendererRef.current) {
+                    // Clear previous route if one of the places is deselected
+                    directionsRendererRef.current.setDirections({ routes: [] });
+                }
+                // Clear route data from tripData to prevent stale info
+                setTripData(prev => ({ ...prev, distance_km: undefined, estimated_drive_time_min: undefined }));
+                return;
+            }
     
             setIsCalculatingRoute(true);
             const directionsService = new window.google.maps.DirectionsService();
     
             directionsService.route(
                 {
-                    origin: { query: tripData.origin },
-                    destination: { query: tripData.destination },
+                    // Use placeId for unambiguous, robust routing
+                    origin: { placeId: originPlace.place_id },
+                    destination: { placeId: destinationPlace.place_id },
                     travelMode: window.google.maps.TravelMode.DRIVING,
                 },
                 (result: any, status: any) => {
@@ -226,17 +260,22 @@ const CreateTripForm: React.FC = () => {
             );
         };
     
-        const handler = setTimeout(() => {
-            calculateRoute();
-        }, 1500);
-    
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [tripData.origin, tripData.destination]);
+        calculateRoute();
+    }, [originPlace, destinationPlace]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setTripData({ ...tripData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setTripData(prev => ({ ...prev, [name]: value }));
+        
+        // Invalidate confirmed place if user manually edits the input, forcing re-selection
+        if (name === 'origin' && originPlace) {
+            setOriginPlace(null);
+            setEstimate(null); // Also clear the old estimate
+        }
+        if (name === 'destination' && destinationPlace) {
+            setDestinationPlace(null);
+            setEstimate(null); // Also clear the old estimate
+        }
     };
 
     const handleGetEstimate = async () => {
@@ -245,32 +284,34 @@ const CreateTripForm: React.FC = () => {
             return;
         }
         if (!tripData.distance_km || !tripData.estimated_drive_time_min) {
-            setError('Esperando cálculo de ruta. Verifica las direcciones.');
+            setError('Esperando cálculo de ruta. Por favor, selecciona direcciones válidas de la lista.');
             return;
         }
         setError('');
         setIsEstimating(true);
-        const result = await getTripEstimates(tripData.origin, tripData.destination, tripData.cargo_details);
-        if (result) {
-            const { estimatedLoadTimeMin, estimatedUnloadTimeMin } = result;
+        
+        // New pricing logic: $25k/hr, 1hr min, 30min increments
+        const calculatePrice = (minutes: number): number => {
+            const ratePerHour = 25000;
+            if (minutes <= 60) {
+                return ratePerHour; // Minimum 1 hour charge
+            }
+            // After 1 hour, round up to the nearest 30-minute increment
+            const halfHourIncrements = Math.ceil(minutes / 30);
+            const hours = halfHourIncrements * 0.5;
+            return hours * ratePerHour;
+        };
+        
+        const price = calculatePrice(tripData.estimated_drive_time_min);
+        
+        const fullEstimate = {
+            distanceKm: tripData.distance_km,
+            estimatedDriveTimeMin: tripData.estimated_drive_time_min,
+        };
 
-            const timeCost = Math.ceil(tripData.estimated_drive_time_min / 60) * 22000;
-            const distanceBonus = tripData.distance_km > 30 ? 20000 : 0;
-            const price = Math.round(timeCost + distanceBonus);
-
-            const fullEstimate = {
-                distanceKm: tripData.distance_km,
-                estimatedDriveTimeMin: tripData.estimated_drive_time_min,
-                estimatedLoadTimeMin,
-                estimatedUnloadTimeMin,
-            };
-
-            setEstimate(fullEstimate);
-            setTripData(prev => ({ ...prev, ...fullEstimate, price: price }));
-
-        } else {
-            setError('No se pudo obtener una estimación. Intenta de nuevo.');
-        }
+        setEstimate(fullEstimate);
+        setTripData(prev => ({ ...prev, ...fullEstimate, price: price }));
+        
         setIsEstimating(false);
     };
 
@@ -288,31 +329,51 @@ const CreateTripForm: React.FC = () => {
         const finalTripData: NewTrip = {
             origin: tripData.origin!,
             destination: tripData.destination!,
+            origin_city: tripData.origin_city,
+            origin_province: tripData.origin_province,
+            destination_city: tripData.destination_city,
+            destination_province: tripData.destination_province,
             cargo_details: tripData.cargo_details!,
             estimated_weight_kg: Number(tripData.estimated_weight_kg),
             estimated_volume_m3: Number(tripData.estimated_volume_m3),
             distance_km: tripData.distance_km,
             estimated_drive_time_min: tripData.estimated_drive_time_min,
-            estimated_load_time_min: tripData.estimated_load_time_min,
-            estimated_unload_time_min: tripData.estimated_unload_time_min,
             price: tripData.price,
         };
         
-        await context.createTrip(finalTripData);
-        setTripData({});
-        setEstimate(null);
-        if (directionsRendererRef.current) {
-            directionsRendererRef.current.setDirections({ routes: [] });
+        setIsSubmitting(true);
+        const resultError = await context.createTrip(finalTripData);
+        setIsSubmitting(false);
+
+        if (resultError) {
+            setError(resultError.message);
+        } else {
+            setTripData({});
+            setEstimate(null);
+            setOriginPlace(null);
+            setDestinationPlace(null);
+            if (originRef.current) originRef.current.value = '';
+            if (destinationRef.current) destinationRef.current.value = '';
+            if (directionsRendererRef.current) {
+                directionsRendererRef.current.setDirections({ routes: [] });
+            }
         }
     };
 
     return (
         <Card>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <Input name="origin" label="Origen" placeholder="Calle, Número, Ciudad, Provincia" onChange={handleInputChange} value={tripData.origin || ''} ref={originRef} required />
-                <Input name="destination" label="Destino" placeholder="Calle, Número, Ciudad, Provincia" onChange={handleInputChange} value={tripData.destination || ''} ref={destinationRef} required />
+                <Input name="origin" label="Origen" placeholder="Selecciona una dirección de la lista" onChange={handleInputChange} value={tripData.origin || ''} ref={originRef} required />
+                <Input name="destination" label="Destino" placeholder="Selecciona una dirección de la lista" onChange={handleInputChange} value={tripData.destination || ''} ref={destinationRef} required />
                 
                 <div ref={mapRef} className="relative h-64 w-full bg-slate-900/70 rounded-lg my-2 border border-slate-700/80 shadow-inner shadow-black/20 overflow-hidden">
+                    {apiKeyMissing && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 z-20 p-4 text-center">
+                            <Icon type="truck" className="w-12 h-12 text-amber-400 mb-4"/>
+                            <h4 className="font-bold text-slate-100 text-lg mb-2">Mapa Deshabilitado</h4>
+                            <p className="text-slate-300 text-sm">Para activar el mapa de rutas, pega tu clave de API de Google Maps en la variable <code>apiKey</code> dentro del archivo <code>CustomerDashboard.tsx</code>.</p>
+                        </div>
+                    )}
                     {isCalculatingRoute && (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 z-10">
                             <Spinner />
@@ -336,20 +397,19 @@ const CreateTripForm: React.FC = () => {
                 {error && <p className="text-sm text-red-400 text-center animate-shake">{error}</p>}
                 
                 {!estimate ? (
-                    <Button type="button" onClick={handleGetEstimate} isLoading={isEstimating} className="w-full" disabled={!tripData.distance_km}>Obtener Estimación de Viaje</Button>
+                    <Button type="button" onClick={handleGetEstimate} isLoading={isEstimating} className="w-full" disabled={!originPlace || !destinationPlace || !tripData.distance_km || apiKeyMissing}>Obtener Estimación de Viaje</Button>
                 ) : (
                     <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 space-y-3 animate-fadeSlideIn">
                          <h4 className="text-lg font-bold text-slate-100">Estimación del Viaje</h4>
-                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
                             <div><p className="text-xl font-bold text-white">{estimate.distanceKm.toFixed(1)}</p><p className="text-xs text-slate-400">km</p></div>
                             <div><p className="text-xl font-bold text-white">{estimate.estimatedDriveTimeMin}</p><p className="text-xs text-slate-400">min (viaje)</p></div>
-                            <div><p className="text-xl font-bold text-white">{estimate.estimatedLoadTimeMin + estimate.estimatedUnloadTimeMin}</p><p className="text-xs text-slate-400">min (carga/descarga)</p></div>
                             <div><p className="text-xl font-bold text-green-400">${tripData.price?.toLocaleString()}</p><p className="text-xs text-slate-400">Precio Est.</p></div>
                          </div>
                     </div>
                 )}
 
-                <Button type="submit" disabled={!estimate || isEstimating} className="w-full">Confirmar y Solicitar Flete</Button>
+                <Button type="submit" disabled={!estimate || isEstimating || isSubmitting} isLoading={isSubmitting} className="w-full">Confirmar y Buscar Fleteros</Button>
             </form>
         </Card>
     );
@@ -364,25 +424,30 @@ const TripList: React.FC = () => {
         return context.trips.filter(trip => trip.customer_id === user.id);
     }, [context, user]);
 
+    const getOfferCountForTrip = (tripId: number) => {
+        return context?.offers.filter(o => o.trip_id === tripId).length || 0;
+    }
+
     if (myTrips.length === 0) {
         return <p className="text-slate-400 text-center mt-8">No tienes viajes activos o solicitados.</p>;
     }
 
-    const getStatusInfo = (status: Trip['status']) => {
-        const info = {
-            'requested': { text: 'Buscando Fletero', color: 'bg-blue-500' },
+    const getStatusInfo = (trip: Trip) => {
+        const offerCount = getOfferCountForTrip(trip.id);
+        const info: { [key in Trip['status']]: { text: string; color: string } } = {
+            'requested': { text: `${offerCount} ${offerCount === 1 ? 'Oferta' : 'Ofertas'}`, color: 'bg-blue-500' },
             'accepted': { text: 'Fletero Asignado', color: 'bg-amber-500' },
             'in_transit': { text: 'En Viaje', color: 'bg-indigo-500' },
             'completed': { text: 'Completado', color: 'bg-green-500' },
             'paid': { text: 'Finalizado', color: 'bg-emerald-600' }
         };
-        return info[status] || { text: status.toUpperCase(), color: 'bg-slate-500' };
+        return info[trip.status] || { text: trip.status.toUpperCase(), color: 'bg-slate-500' };
     };
 
     return (
         <div className="space-y-4">
             {myTrips.map(trip => {
-                const statusInfo = getStatusInfo(trip.status);
+                const statusInfo = getStatusInfo(trip);
                 return (
                     <Card key={trip.id} className="transition-all hover:border-slate-700/80">
                         <div className="flex justify-between items-start gap-4">

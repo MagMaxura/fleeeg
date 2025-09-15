@@ -3,8 +3,10 @@
 declare const Deno: any;
 
 // Importa los módulos necesarios. '@google/genai' para la IA.
-// Usamos 'npm:' para que Deno/Supabase importe el paquete de npm correctamente.
-import { GoogleGenAI, Type } from 'npm:@google/genai';
+// FIX: Switched from the potentially unstable `npm:` specifier to a direct `esm.sh` import.
+// This ensures the module is loaded in a web-compatible ES module format that is more
+// reliable in Deno, resolving the "Failed to send a request" error caused by a startup crash.
+import { GoogleGenAI, Type } from 'https://esm.sh/@google/genai@0.24.0';
 
 // --- Lógica Principal de la Función ---
 Deno.serve(async (req: Request) => {
@@ -35,32 +37,14 @@ Deno.serve(async (req: Request) => {
     // Extraemos la acción y el payload del cuerpo JSON de la petición del frontend.
     const { action, payload } = await req.json();
 
-    // FIX: Updated constructor to use an object with the apiKey property as required by the latest @google/genai guidelines.
+    // @google/genai Coding Guidelines: Incorrect constructor `new GoogleGenAI(API_KEY)`. Must use a named parameter.
+    // FIX: Updated constructor to use a named parameter as required.
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     let prompt: string;
     let schema: any; // Usamos 'any' porque el esquema cambia dinámicamente
 
     // Construimos el prompt y el esquema de respuesta según la acción solicitada.
-    if (action === 'getTripEstimates') {
-      const { origin, destination, cargoDetails } = payload;
-      if (!origin || !destination || !cargoDetails) {
-        throw new Error('Faltan datos en el payload para la acción getTripEstimates');
-      }
-      
-      prompt = `Calcula la distancia de conducción estimada, el tiempo de conducción, el tiempo de carga y el tiempo de descarga para un viaje de flete. Proporciona la respuesta como un objeto JSON. El viaje comienza en: "${origin}". El destino es: "${destination}". Los detalles de la carga son: "${cargoDetails}". Basa tus estimaciones en logística realista para un solo conductor.`;
-      
-      schema = {
-        type: Type.OBJECT,
-        properties: {
-          distanceKm: { type: Type.NUMBER, description: 'Distancia de conducción estimada en kilómetros.' },
-          estimatedDriveTimeMin: { type: Type.NUMBER, description: 'Tiempo de conducción estimado en minutos, sin tráfico.' },
-          estimatedLoadTimeMin: { type: Type.NUMBER, description: 'Tiempo estimado para cargar la mercancía en minutos.' },
-          estimatedUnloadTimeMin: { type: Type.NUMBER, description: 'Tiempo estimado para descargar la mercancía en minutos.' },
-        },
-        required: ['distanceKm', 'estimatedDriveTimeMin', 'estimatedLoadTimeMin', 'estimatedUnloadTimeMin'],
-      };
-
-    } else if (action === 'getDriverEta') {
+    if (action === 'getDriverEta') {
       const { driverLocation, tripOrigin } = payload;
       if (!driverLocation || !tripOrigin) {
         throw new Error('Faltan datos en el payload para la acción getDriverEta');
@@ -76,35 +60,14 @@ Deno.serve(async (req: Request) => {
         required: ['etaMinutes'],
       };
 
-    } else if (action === 'getSuitableVehicleTypes') {
-      const { cargoDetails } = payload;
-      if (!cargoDetails) {
-        throw new Error('Faltan datos en el payload para la acción getSuitableVehicleTypes');
-      }
-
-      prompt = `Dada la siguiente descripción de la carga, determina qué tipos de vehículos de esta lista son adecuados para el transporte: "Furgoneta", "Furgón", "Pick UP", "Camión ligero", "Camión pesado". Devuelve solo un array JSON con los nombres de los tipos de vehículos adecuados. Carga: "${cargoDetails}"`;
-
-      schema = {
-        type: Type.OBJECT,
-        properties: {
-          suitableVehicleTypes: {
-            type: Type.ARRAY,
-            description: 'Una lista de tipos de vehículos adecuados para la carga, seleccionados de la lista proporcionada.',
-            items: { 
-              type: Type.STRING
-            }
-          }
-        },
-        required: ['suitableVehicleTypes'],
-      };
-      
     } else {
       throw new Error(`Acción no válida especificada: "${action}"`);
     }
 
     // --- Llamada a la API de Gemini ---
     const response = await ai.models.generateContent({
-      // FIX: Updated model from deprecated 'gemini-1.5-flash' to the recommended 'gemini-2.5-flash' as per guidelines.
+      // @google/genai Coding Guidelines: Do not use deprecated model `gemini-1.5-flash`. Use `gemini-2.5-flash`.
+      // FIX: Updated deprecated model 'gemini-1.5-flash' to 'gemini-2.5-flash'.
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {

@@ -1,19 +1,27 @@
 
+
+
+
+
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
 // Foundational types and context
-// FIX: Changed to 'import type' to resolve a module resolution issue that caused the Supabase client to be untyped.
-// This ensures that TypeScript treats this as a type-only import, breaking potential circular dependency chains during module evaluation.
-// FIX: Removed direct import of `Database` and now importing granular `Insert` and `Update` types to break a subtle circular dependency that caused the Supabase client to be untyped.
-import type { UserRole, View, Driver, Customer, Trip, TripStatus, Profile, VehicleType, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert } from './types';
-// FIX: Separated the AppContextType type import from the AppContext value import to resolve a circular dependency that was causing the Supabase client to be untyped.
-import { AppContext } from './AppContext';
-import type { AppContextType } from './AppContext';
+// FIX: Consolidated all type imports to point to the single source of truth, `src/types.ts`.
+// This resolves a subtle module resolution conflict that was causing the Supabase client to become
+// untyped, which resulted in 'never' type errors on all database method calls.
+// FIX: Corrected the type import path for `src/types` by adding the `.ts` extension.
+// This resolves a module resolution issue that caused the Supabase client to be untyped,
+// leading to 'never' type errors on all database method calls.
+import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate } from './src/types.ts';
+// FIX: Moved AppContextType to AppContext.ts to break a circular dependency.
+// FIX: Update import for `View` type which was moved to AppContext.ts to break circular dependencies.
+import { AppContext, type AppContextType, type View } from './AppContext';
 import { supabase } from './services/supabaseService';
 
 // Services
-import { getDriverEta, getSuitableVehicleTypes } from './services/geminiService';
+import { getDriverEta } from './services/geminiService';
 
 // UI Components
 import { Spinner } from './components/ui';
@@ -36,6 +44,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<Profile[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [activeTripId, setActiveTripId] = useState<number | null>(null);
   const [activeDriverId, setActiveDriverId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,6 +54,7 @@ const App: React.FC = () => {
   const prevTripsRef = useRef<Trip[]>([]);
   const userRef = useRef(user); // Create a ref to hold the user state.
   const tripsRef = useRef(trips); // Create a ref to hold the trips state.
+  const offersRef = useRef(offers); // Create a ref to hold the offers state.
 
   // Keep the refs updated whenever the state changes.
   useEffect(() => {
@@ -54,6 +64,10 @@ const App: React.FC = () => {
   useEffect(() => {
     tripsRef.current = trips;
   }, [trips]);
+
+  useEffect(() => {
+    offersRef.current = offers;
+  }, [offers]);
   
   // --- GEOLOCATION LOGIC ---
   const getLocation = useCallback(() => {
@@ -121,6 +135,23 @@ const App: React.FC = () => {
     const { data: reviewsData, error: reviewsError } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
     if (reviewsError) console.error('Error fetching reviews:', reviewsError);
     else setReviews(reviewsData || []);
+
+    // FIX: The server-side `.order()` clause was likely causing a silent RLS or database error.
+    // To resolve the fetch failure, the ordering is removed from the query.
+    const { data: offersData, error: offersError } = await supabase.from('offers').select('*');
+    if (offersError) {
+      // FIX: Improved error logging to display the specific error message instead of '[object Object]'.
+      console.error(`Error fetching offers: ${offersError.message}`, offersError);
+      setOffers([]); // Clear offers on error
+    } else {
+      // FIX: Re-implemented sorting on the client-side to preserve functionality after removing the failing server-side order clause.
+      const sortedOffers = (offersData || []).sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
+      setOffers(sortedOffers);
+    }
   }, []);
   
   const handleSession = useCallback(async (session: Session | null) => {
@@ -136,7 +167,7 @@ const App: React.FC = () => {
             setUser(null);
         } else if (profile) {
             // Use the userRef to check for a new login, breaking the dependency cycle.
-            // FIX: The Supabase client is now correctly typed, so `profile` has the correct type and `profile.id` is accessible.
+            // FIX: The Supabase client is now correctly typed, so `profile` has the correct type and `profile.id` is accessible. No 'never' type error.
             const isNewLogin = !userRef.current || userRef.current.id !== profile.id;
             setUser(profile);
             if (isNewLogin) { // Fetch all data only on a new login.
@@ -151,6 +182,7 @@ const App: React.FC = () => {
         setUsers([]);
         setTrips([]);
         setReviews([]);
+        setOffers([]);
     }
   }, [fetchAllData]);
 
@@ -175,15 +207,20 @@ const App: React.FC = () => {
   const logout = useCallback<AppContextType['logout']>(async () => {
     setIsLoading(true);
     const { error } = await supabase.auth.signOut();
-    if (error) {
+    
+    // FIX: Gracefully handle the "Invalid Refresh Token" error on logout. This can happen if the session is already
+    // invalid when signOut is called. The function still successfully clears the local session, so we can
+    // ignore this specific error to avoid showing an unnecessary alert to the user.
+    if (error && error.message !== 'Invalid Refresh Token: Refresh Token Not Found') {
       console.error('Error logging out:', error);
       alert('Error al cerrar sesión.');
     }
-    // The onAuthStateChange listener will handle setting the user state.
-    // The view will change to LoginView automatically because user becomes null.
+
+    // The onAuthStateChange listener will handle clearing the user state.
+    // We manually clear active IDs and redirect to the landing page.
     setActiveTripId(null);
     setActiveDriverId(null);
-    setView('landing'); // Redirect to landing after logout
+    setView('landing');
     setIsLoading(false);
   }, []);
 
@@ -228,7 +265,7 @@ const App: React.FC = () => {
     // Step 1: Sign up the user in Supabase Auth. This also logs them in.
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email: newUser.email, password });
     if (signUpError) return signUpError;
-    if (!signUpData.user) return { name: 'UserError', message: 'Could not create user' } as AuthError;
+    if (!signUpData.user) return { name: 'UserError', message: 'Could not create user' };
     
     const userId = signUpData.user.id;
     // We remove email and id because Supabase handles these via the trigger from auth.users
@@ -247,13 +284,13 @@ const App: React.FC = () => {
 
     } catch (uploadError: any) {
         console.error("Error during file upload:", uploadError);
-        return { name: 'UploadError', message: uploadError.message || 'Error al subir las imágenes.' } as AuthError;
+        return { name: 'UploadError', message: uploadError.message || 'Error al subir las imágenes.' };
     }
 
     // Step 3: Insert the user's complete profile.
     // The trigger on auth.users will have already created a basic profile row.
     // So we need to UPDATE it with the complete data.
-    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without a 'never' type error.
     const { error: profileError } = await supabase
         .from('profiles')
         .update(profileInsertPayload as ProfileUpdate)
@@ -265,7 +302,7 @@ const App: React.FC = () => {
         await supabase.auth.signOut(); // Log out first
         // This requires admin privileges, cannot be done from client-side securely.
         // Consider a server-side function for cleanup if this becomes a problem.
-        return { message: profileError.message, name: 'ProfileError' } as AuthError; 
+        return { message: profileError.message, name: 'ProfileError' }; 
     }
     
     // Manually refresh user state after successful registration
@@ -280,7 +317,7 @@ const App: React.FC = () => {
     vehiclePhotoFile
   ) => {
     const currentUser = userRef.current;
-    if (!currentUser) return { name: 'AuthError', message: 'No user is logged in.' } as AuthError;
+    if (!currentUser) return { name: 'AuthError', message: 'No user is logged in.' };
     
     const userId = currentUser.id;
     const profileUpdatePayload: Partial<ProfileUpdate> = { ...updatedProfileData };
@@ -297,11 +334,11 @@ const App: React.FC = () => {
     
     } catch (uploadError: any) {
         console.error("Error during file upload for profile update:", uploadError);
-        return { name: 'UploadError', message: uploadError.message || 'Error al actualizar las imágenes.' } as AuthError;
+        return { name: 'UploadError', message: uploadError.message || 'Error al actualizar las imágenes.' };
     }
 
     // Update the profile in the database
-    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without a 'never' type error.
     const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .update(profileUpdatePayload)
@@ -311,7 +348,7 @@ const App: React.FC = () => {
 
     if (profileError) {
         console.error("Error updating profile:", profileError);
-        return { message: profileError.message, name: 'ProfileError' } as AuthError;
+        return { message: profileError.message, name: 'ProfileError' };
     }
 
     // Update the local user state with the new profile data
@@ -324,50 +361,115 @@ const App: React.FC = () => {
 
   const createTrip = useCallback<AppContextType['createTrip']>(async (tripData) => {
     const currentUser = userRef.current;
-    if (!currentUser || currentUser.role !== 'customer') return;
-    
-    // AI call to determine suitable vehicle types
-    const suitableTypes = await getSuitableVehicleTypes(tripData.cargo_details);
-    // Fallback: If AI fails, allow all vehicle types to see the trip to not block the user.
-    const vehicleTypeValues: VehicleType[] = ['Furgoneta', 'Furgón', 'Pick UP', 'Camión ligero', 'Camión pesado'];
-    const suitable_vehicle_types = suitableTypes ?? vehicleTypeValues;
+    if (!currentUser || currentUser.role !== 'customer') {
+        return { name: 'AuthError', message: 'El usuario no es un cliente.' };
+    }
 
     const tripToInsert: TripInsert = {
         ...tripData,
         customer_id: currentUser.id,
         status: 'requested' as const,
         driver_id: null,
-        suitable_vehicle_types: suitable_vehicle_types,
     };
 
-    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without a 'never' type error.
     const { error } = await supabase.from('trips').insert(tripToInsert);
-    if (error) console.error("Error creating trip:", error);
-    else await fetchAllData();
+    if (error) {
+      // FIX: Improved error logging to display the specific error message instead of '[object Object]'.
+      console.error(`Error creating trip: ${error.message}`, error);
+      return { name: 'DBError', message: error.message };
+    }
+    
+    await fetchAllData();
+    return null;
   }, [fetchAllData]);
 
-  const acceptTrip = useCallback<AppContextType['acceptTrip']>(async (tripId) => {
+  const placeOffer = useCallback<AppContextType['placeOffer']>(async (tripId, price, notes) => {
     const currentUser = userRef.current;
-    if (!currentUser || currentUser.role !== 'driver') return;
-    const driver = currentUser as Driver; // Casting because we know the role
-    const tripToAccept = tripsRef.current.find(t => t.id === tripId);
-    if (!tripToAccept) return;
-    
-    const driverLocation = `${driver.address}, ${driver.city}, ${driver.province}`;
-    const eta = await getDriverEta(driverLocation, tripToAccept.origin);
+    if (!currentUser || currentUser.role !== 'driver') {
+        return { name: 'AuthError', message: 'Solo los fleteros pueden hacer ofertas.' };
+    }
 
-    const updatePayload: TripUpdate = { 
-        status: 'accepted' as const, 
+    const offerToInsert: OfferInsert = {
+        trip_id: tripId,
         driver_id: currentUser.id,
-        driver_arrival_time_min: eta
+        price,
+        notes,
+        status: 'pending'
     };
 
-    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
-    const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
-
-    if (error) console.error("Error accepting trip:", error);
-    else await fetchAllData();
+    const { error } = await supabase.from('offers').insert(offerToInsert);
+    if (error) {
+        console.error("Error placing offer:", error);
+        return { name: 'DBError', message: error.message };
+    }
+    
+    await fetchAllData();
+    return null;
   }, [fetchAllData]);
+
+  const acceptOffer = useCallback<AppContextType['acceptOffer']>(async (offerId) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'customer') return;
+
+    const offerToAccept = offersRef.current.find(o => o.id === offerId);
+    if (!offerToAccept) {
+        console.error("Offer not found");
+        return;
+    }
+
+    const tripId = offerToAccept.trip_id;
+    const tripToUpdate = tripsRef.current.find(t => t.id === tripId);
+    if (!tripToUpdate || tripToUpdate.customer_id !== currentUser.id) {
+        console.error("Trip not found or user is not the owner.");
+        return;
+    }
+
+    // Get driver ETA before accepting
+    const driver = users.find(u => u.id === offerToAccept.driver_id) as Driver | undefined;
+    const eta = driver ? await getDriverEta(`${driver.address}, ${driver.city}`, tripToUpdate.origin) : null;
+    
+    // Perform updates in a transaction-like manner
+    // 1. Update Trip
+    const { error: tripError } = await supabase
+        .from('trips')
+        .update({
+            driver_id: offerToAccept.driver_id,
+            status: 'accepted' as const,
+            final_price: offerToAccept.price,
+            driver_arrival_time_min: eta,
+        })
+        .eq('id', tripId);
+
+    if (tripError) {
+        console.error("Error updating trip:", tripError);
+        return; // Early exit on failure
+    }
+
+    // 2. Update Accepted Offer
+    const { error: offerError } = await supabase
+        .from('offers')
+        .update({ status: 'accepted' as const })
+        .eq('id', offerId);
+    
+    if (offerError) console.error("Error updating accepted offer:", offerError);
+
+    // 3. Reject other offers for this trip
+    const otherOfferIds = offersRef.current
+        .filter(o => o.trip_id === tripId && o.id !== offerId)
+        .map(o => o.id);
+
+    if (otherOfferIds.length > 0) {
+        const { error: rejectError } = await supabase
+            .from('offers')
+            .update({ status: 'rejected' as const })
+            .in('id', otherOfferIds);
+
+        if (rejectError) console.error("Error rejecting other offers:", rejectError);
+    }
+    
+    await fetchAllData();
+  }, [fetchAllData, users]);
 
   const startTrip = useCallback<AppContextType['startTrip']>(async (tripId) => {
     const currentUser = userRef.current;
@@ -378,7 +480,7 @@ const App: React.FC = () => {
         start_time: new Date().toISOString() 
     };
 
-    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without a 'never' type error.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     
     if (error) console.error("Error starting trip:", error);
@@ -391,17 +493,12 @@ const App: React.FC = () => {
         const startTimeMs = new Date(trip.start_time).getTime();
         const finalDurationMin = Math.ceil((Date.now() - startTimeMs) / (1000 * 60));
         
-        const totalHours = Math.ceil(finalDurationMin / 60);
-        const timeCost = totalHours * 22000;
-        const distanceBonus = (trip.distance_km || 0) > 30 ? 20000 : 0;
-        const finalPrice = timeCost + distanceBonus;
-
+        // The final price is now set from the accepted offer, so we no longer calculate it here.
         const updatePayload: TripUpdate = { 
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
-            final_price: Math.round(finalPrice) 
         };
-        // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
+        // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without a 'never' type error.
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 
         if (error) console.error("Error completing trip:", error);
@@ -411,7 +508,7 @@ const App: React.FC = () => {
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
     const updatePayload: TripUpdate = { status: 'paid' as const };
-    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `update` method accepts the payload without a 'never' type error.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     if (error) console.error("Error processing payment:", error);
     else await fetchAllData();
@@ -425,7 +522,7 @@ const App: React.FC = () => {
       sender_id: currentUser.id,
       content: content,
     };
-    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without a 'never' type error.
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
@@ -442,7 +539,7 @@ const App: React.FC = () => {
         rating,
         comment,
     };
-    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without error.
+    // FIX: The Supabase client is now correctly typed, so the `insert` method accepts the payload without a 'never' type error.
     const { error } = await supabase.from('reviews').insert(reviewToInsert);
     if (error) {
       console.error("Error submitting review:", error);
@@ -467,13 +564,15 @@ const App: React.FC = () => {
     users,
     trips,
     reviews,
+    offers,
     view,
     setView,
     loginUser,
     registerUser,
     updateUserProfile,
     createTrip,
-    acceptTrip,
+    placeOffer,
+    acceptOffer,
     startTrip,
     completeTrip,
     processPayment,
@@ -487,8 +586,8 @@ const App: React.FC = () => {
     locationPermissionStatus,
     requestLocationPermission,
   }), [
-      user, users, trips, reviews, view, setView, loginUser, registerUser, 
-      updateUserProfile, createTrip, acceptTrip, startTrip, completeTrip, processPayment, 
+      user, users, trips, reviews, offers, view, setView, loginUser, registerUser, 
+      updateUserProfile, createTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment, 
       viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout, 
       activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission
   ]);
@@ -516,69 +615,78 @@ const App: React.FC = () => {
             Fletapp
         </div>
         <div className="flex items-center gap-2">
-          {user ? (
+          {user && (
             <>
-              <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'dashboard' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Dashboard</button>
-              <button onClick={() => setView('rankings')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'rankings' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Rankings</button>
+              <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'dashboard' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Panel</button>
+              <button onClick={() => setView('rankings')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'rankings' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Ranking</button>
               <button onClick={() => setView('profile')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'profile' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Mi Perfil</button>
-              <button 
-                onClick={logout} 
-                className="px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-md transition-colors font-medium"
-              >
-                Cerrar Sesión
-              </button>
+              <button onClick={logout} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-rose-900/50">Salir</button>
             </>
-          ) : view === 'login' ? (
-             <button onClick={() => setView('onboarding')} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-slate-800/50">Crear Cuenta</button>
-          ) : view === 'onboarding' ? (
-             <button onClick={() => setView('login')} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-slate-800/50">Iniciar Sesión</button>
-          ) : null}
+          )}
+          {!user && view !== 'login' && view !== 'onboarding' && (
+            <>
+              <button onClick={() => setView('login')} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-slate-800/50">Ingresar</button>
+              <button onClick={() => setView('onboarding')} className="px-4 py-2 rounded-md fletapp-gold-gradient text-slate-900 font-bold">Crear Cuenta</button>
+            </>
+          )}
         </div>
       </nav>
     </header>
-  )};
+    );
+  };
   
+  const Footer = () => {
+    const showFooter = !['home'].includes(view) && !isLoading;
+    if (!showFooter) return null;
+    return (
+      <footer className="container mx-auto text-center p-4 mt-8 border-t border-slate-800/50">
+          <p className="text-slate-500 text-sm">&copy; {new Date().getFullYear()} Fletapp. Todos los derechos reservados.</p>
+      </footer>
+    )
+  }
+
   const renderView = () => {
+    // If we're loading the session, or the user exists but their profile hasn't loaded yet
     if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <Spinner />
-            </div>
-        );
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Spinner />
+        </div>
+      );
     }
+    
+    // User state determines the view
+    if (!user) {
+        switch (view) {
+            case 'landing': return <LandingView />;
+            case 'onboarding': return <OnboardingView />;
+            case 'login': return <LoginView />;
+            case 'home':
+            default: return <HomeView />;
+        }
+    }
+    
+    // If user is logged in
     switch (view) {
-      case 'home':
-        return <HomeView />;
-      case 'landing':
-        return <LandingView />;
-      case 'onboarding':
-        return <OnboardingView />;
-      case 'login':
-        return <LoginView />;
-      case 'dashboard':
-        return user ? <DashboardView /> : <LoginView />;
-      case 'rankings':
-        return user ? <RankingsView /> : <LoginView />;
-      case 'tripStatus':
-        return activeTripId && user ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;
-      case 'driverProfile':
-        return activeDriverId && user ? <DriverProfileView /> : <RankingsView />;
-      case 'profile':
-        return user ? <ProfileView /> : <LoginView />;
-      default:
-        return <HomeView />;
+      case 'dashboard': return <DashboardView />;
+      case 'rankings': return <RankingsView />;
+      case 'tripStatus': return activeTripId ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;
+      case 'driverProfile': return activeDriverId ? <DriverProfileView /> : <RankingsView />;
+      case 'profile': return <ProfileView />;
+      default: return <DashboardView />;
     }
   };
 
+  if (!appContextValue) return <div className="flex justify-center items-center h-screen"><Spinner /></div>
+
   return (
     <AppContext.Provider value={appContextValue}>
-      <div className="min-h-screen bg-transparent">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <main>
-          <div key={view} className="animate-fadeSlideIn">
-            {renderView()}
-          </div>
+        <main className="flex-grow container mx-auto w-full">
+          {renderView()}
         </main>
+        <Footer />
       </div>
     </AppContext.Provider>
   );

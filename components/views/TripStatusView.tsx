@@ -11,7 +11,11 @@ declare global {
 import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../AppContext';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { Trip, TripStatus, UserRole, View, Profile, ChatMessage, Review } from '../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Updated import for `View`, which was moved to AppContext.ts to break a circular dependency.
+import type { View } from '../../AppContext';
+import type { Trip, TripStatus, UserRole, Profile, ChatMessage, Review, Offer, Driver } from '../../src/types.ts';
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui';
 import { supabase } from '../../services/supabaseService';
 
@@ -96,20 +100,23 @@ const Stopwatch: React.FC<{ start_time: number | string }> = ({ start_time }) =>
 
 const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
     const apiKey = useMemo(() => {
-        try {
-            const env = (import.meta as any).env;
-            return env?.VITE_GOOGLE_MAPS_API_KEY;
-        } catch (e) {
-            console.warn("Could not access import.meta.env. This is expected in non-Vite environments.", e);
-        }
-        return undefined;
+        // =================================================================================
+        // !! ACTION REQUIRED TO ENABLE THE MAP !!
+        // =================================================================================
+        // To display the trip route on the map, you must provide your own API key.
+        // 1. Get a key: https://developers.google.com/maps/documentation/embed/get-api-key
+        // 2. Paste it into the `apiKey` variable below.
+        // 3. For production, it's recommended to use environment variables.
+        // =================================================================================
+        return "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
     }, []);
     
-    const mapEmbedUrl = apiKey ? `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${encodeURIComponent(trip.origin)}&destination=${encodeURIComponent(trip.destination)}` : '';
+    const isApiKeyMissing = !apiKey;
+    const mapEmbedUrl = !isApiKeyMissing ? `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${encodeURIComponent(trip.origin)}&destination=${encodeURIComponent(trip.destination)}` : '';
 
     return (
         <div className="mt-4 aspect-video bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700 relative group">
-            {apiKey ? (
+            {mapEmbedUrl ? (
                 <iframe
                     title="Recorrido del Viaje"
                     width="100%"
@@ -127,21 +134,32 @@ const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
             <div className={`
               absolute inset-0 flex flex-col items-center justify-center p-4 text-center 
               transition-all duration-300 backdrop-blur-sm
-              ${apiKey 
+              ${mapEmbedUrl 
                 ? 'bg-slate-900/80 opacity-0 group-hover:opacity-100 focus-within:opacity-100' 
                 : 'bg-slate-800/80 opacity-100'
               }
             `}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <h4 className="font-bold text-slate-100 text-lg mb-1">
-                  {apiKey ? "¿Problemas para ver el mapa?" : "Mapa no disponible"}
-                </h4>
-                <p className="text-slate-300 text-sm max-w-sm">
-                  Para que el mapa funcione, tu clave de API debe estar habilitada para el servicio <strong>"Maps Embed API"</strong> en tu proyecto de Google Cloud y tener una cuenta de facturación activa.
-                </p>
-                 {!apiKey && <p className="text-amber-300/80 text-xs mt-3">La API Key no está configurada en las variables de entorno (VITE_GOOGLE_MAPS_API_KEY).</p>}
+                {isApiKeyMissing ? (
+                    <>
+                        <Icon type="truck" className="w-10 h-10 text-amber-400 mb-3" />
+                        <h4 className="font-bold text-slate-100 text-lg mb-1">Mapa Deshabilitado</h4>
+                        <p className="text-slate-300 text-sm max-w-sm">
+                          Para ver el mapa del viaje, pega tu clave de API de Google Maps en la variable <code>apiKey</code> dentro del archivo <code>TripStatusView.tsx</code>.
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <h4 className="font-bold text-slate-100 text-lg mb-1">
+                          ¿Problemas para ver el mapa?
+                        </h4>
+                        <p className="text-slate-300 text-sm max-w-sm">
+                          Para que el mapa funcione, tu clave de API debe estar habilitada para el servicio <strong>"Maps Embed API"</strong> en tu proyecto de Google Cloud y tener una cuenta de facturación activa.
+                        </p>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -264,12 +282,17 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   }, [context?.users, trip]);
   
   const user = context?.user;
+
+  const offersForThisTrip = useMemo(() => {
+      if (!context || !trip) return [];
+      return context.offers.filter(o => o.trip_id === trip.id && o.status === 'pending');
+  }, [context, trip]);
+
   const hasAlreadyReviewed = useMemo(() => {
       return context?.reviews.some(r => r.trip_id === tripId && r.reviewer_id === user?.id);
   }, [context?.reviews, tripId, user?.id]);
 
   useEffect(() => {
-    // This effect runs when we get a preferenceId to render the payment button.
     if (preferenceId) {
         let publicKey: string | undefined;
         try {
@@ -298,7 +321,6 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
     }
   }, [preferenceId]);
   
-  // Este efecto verifica si el pago se completó al volver de Mercado Pago.
   useEffect(() => {
       const urlParams = new URLSearchParams(window.location.search);
       const paymentStatus = urlParams.get('payment_status');
@@ -306,7 +328,6 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
 
       if (paymentStatus === 'success' && currentTripId === tripId.toString()) {
           context?.processPayment(tripId);
-          // Limpia la URL para evitar reprocesar el pago si el usuario recarga.
           window.history.replaceState({}, document.title, window.location.pathname);
       }
   }, [tripId, context?.processPayment]);
@@ -351,8 +372,8 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   const handleCompleteTrip = async () => await context.completeTrip(trip.id);
   
   const statuses = [
-      { key: 'requested' as TripStatus, label: 'Solicitado' },
-      { key: 'accepted' as TripStatus, label: 'Aceptado por Fletero' },
+      { key: 'requested' as TripStatus, label: 'Buscando Fletero' },
+      { key: 'accepted' as TripStatus, label: 'Fletero Asignado' },
       { key: 'in_transit' as TripStatus, label: 'En Viaje' },
       { key: 'completed' as TripStatus, label: 'Entregado' },
       { key: 'paid' as TripStatus, label: 'Pagado y Finalizado' },
@@ -364,6 +385,45 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   
   const showReviewForm = user?.role === 'customer' && trip.status === 'paid' && !hasAlreadyReviewed;
   const showReviewSubmitted = user?.role === 'customer' && trip.status === 'paid' && hasAlreadyReviewed;
+  const showOffers = user?.role === 'customer' && trip.status === 'requested';
+
+  const OfferCard: React.FC<{ offer: Offer }> = ({ offer }) => {
+    const driver = context.users.find(u => u.id === offer.driver_id) as Driver | undefined;
+    const [isAccepting, setIsAccepting] = useState(false);
+
+    if (!driver) return null;
+
+    const handleAcceptOffer = async () => {
+        setIsAccepting(true);
+        await context.acceptOffer(offer.id);
+        // isAccepting will stay true as the component unmounts
+    };
+
+    return (
+        <Card className="bg-slate-900/40">
+            <div className="flex flex-col sm:flex-row items-start gap-4">
+                <img src={driver.photo_url} alt={driver.full_name} className="w-16 h-16 rounded-full object-cover border-2 border-slate-700"/>
+                <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="font-bold text-slate-100 text-lg">{driver.full_name}</p>
+                            <div className="flex items-center gap-2">
+                                {/* Add star rating here if available */}
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold text-amber-400">${offer.price.toLocaleString()}</p>
+                    </div>
+                    {offer.notes && <blockquote className="mt-2 text-slate-300 italic border-l-2 border-slate-700 pl-3 text-sm">"{offer.notes}"</blockquote>}
+                </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+                <Button onClick={() => context.viewDriverProfile(driver.id)} variant="secondary" size="sm">Ver Perfil</Button>
+                <Button onClick={handleAcceptOffer} isLoading={isAccepting} size="sm">Aceptar Oferta</Button>
+            </div>
+        </Card>
+    );
+  };
+
 
   return (
     <>
@@ -386,7 +446,7 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                         </span>
                     </div>
                 </div>
-                {trip.status === 'completed' && trip.final_price && <p className="text-sm text-slate-400 mt-1">Calculado en base a la duración y distancia del viaje.</p>}
+                {trip.status === 'completed' && trip.final_price && <p className="text-sm text-slate-400 mt-1">Precio acordado con el fletero.</p>}
                 
                 <div className="mt-4 space-y-2 text-slate-300">
                     <p><span className="font-semibold text-slate-100">Origen:</span> {trip.origin}</p>
@@ -396,10 +456,10 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                     <span className="flex items-center gap-2" title="Distancia"><Icon type="distance" className="w-5 h-5 text-slate-400" /> {trip.distance_km?.toFixed(1)} km</span>
                     {trip.final_duration_min ? 
                        <span className="flex items-center gap-2" title="Duración Final"><Icon type="time" className="w-5 h-5 text-slate-400" /> {trip.final_duration_min} min</span> :
-                       (trip.estimated_drive_time_min || trip.estimated_load_time_min || trip.estimated_unload_time_min) &&
-                         <span className="flex items-center gap-2" title="Tiempo Total Estimado (Conducción + Carga + Descarga)">
+                       (trip.estimated_drive_time_min) &&
+                         <span className="flex items-center gap-2" title="Tiempo de Conducción Estimado">
                             <Icon type="time" className="w-5 h-5 text-slate-400" /> 
-                            {(trip.estimated_drive_time_min || 0) + (trip.estimated_load_time_min || 0) + (trip.estimated_unload_time_min || 0)} min (Est.)
+                            {trip.estimated_drive_time_min} min (Est.)
                          </span>
                     }
                     <span className="flex items-center gap-2" title="Peso"><Icon type="weight" className="w-5 h-5 text-slate-400" /> {trip.estimated_weight_kg} kg</span>
@@ -420,11 +480,24 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                 )}
             </Card></div>
             
-            <div className="staggered-child" style={{ animationDelay: '0.2s' }}><Card>
-                <h3 className="text-2xl font-bold mb-4 text-slate-100">Recorrido del Viaje</h3>
-                <MapDisplay trip={trip} />
-            </Card></div>
-
+            {showOffers && (
+                <div className="staggered-child lg:col-span-2" style={{ animationDelay: '0.2s' }}>
+                    <Card>
+                        <h3 className="text-2xl font-bold mb-4 text-slate-100">{offersForThisTrip.length} {offersForThisTrip.length === 1 ? 'Oferta Recibida' : 'Ofertas Recibidas'}</h3>
+                        {offersForThisTrip.length > 0 ? (
+                            <div className="space-y-4">
+                                {offersForThisTrip.map(offer => <OfferCard key={offer.id} offer={offer} />)}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <Spinner />
+                                <p className="text-slate-400 mt-4">Esperando ofertas de fleteros...</p>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+            )}
+            
             {trip.status !== 'requested' && trip.status !== 'paid' && (
               <div className="staggered-child" style={{ animationDelay: '0.4s' }}>
                 <ChatComponent tripId={trip.id} />
@@ -478,6 +551,7 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                                         )}
                                     </>
                                 )}
+                                 {status.key === 'requested' && <p className="text-sm text-slate-400 mt-1">Recibiendo ofertas...</p>}
                             </div>
                         )
                     })}

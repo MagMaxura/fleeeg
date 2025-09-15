@@ -4,7 +4,10 @@ import { Spinner } from '../ui';
 import CustomerDashboard from './dashboards/CustomerDashboard';
 import DriverDashboard from './dashboards/DriverDashboard';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { View } from '../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Updated import for the `View` type, which was moved to AppContext.ts to break a circular dependency.
+import type { View } from '../../AppContext';
 
 const DashboardView: React.FC = () => {
     const context = useContext(AppContext);

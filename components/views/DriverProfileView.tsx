@@ -1,14 +1,10 @@
-
-
-
-
-
-
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../../AppContext';
 import { Card, Spinner, StarRating, Icon, Button } from '../ui';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { Driver, Review } from '../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+import type { Driver, Review } from '../../src/types.ts';
 
 const DriverProfileView: React.FC = () => {
   const context = useContext(AppContext);

@@ -1,18 +1,32 @@
 
 
 
-
-
-
 import React, { useContext, useMemo, useState } from 'react';
 import { AppContext } from '../../AppContext';
-// FIX: Changed to use inline `import type` for type-only imports to help prevent circular dependency issues.
-import { SortKey, type TripStatus, type UserRole, type Driver } from '../../types';
+// FIX: Changed the import for 'SortKey' to a type-only import to align with the change from enum to type.
+// This ensures that this file only has a type-level dependency on `types.ts`, which is crucial for preventing module resolution errors.
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Updated import for `SortKey`, which was moved to AppContext.ts to break a circular dependency.
+import type { SortKey } from '../../AppContext';
+import type { TripStatus, UserRole, Driver } from '../../src/types.ts';
 import { Card, StarRating } from '../ui';
+
+// FIX: Defined a constant object for SortKey values locally.
+// Since the `SortKey` enum was removed from `types.ts` to make it a pure type file,
+// this object provides the runtime values needed for component logic (state, sorting, etc.).
+const SortKeyValues = {
+  TRIPS: 'trips',
+  KILOGRAMS: 'kilograms',
+  VOLUME: 'volume',
+  KILOMETERS: 'kilometers',
+  RATING: 'rating',
+} as const;
 
 const RankingsView: React.FC = () => {
   const context = useContext(AppContext);
-  const [sortKey, setSortKey] = useState<SortKey>(SortKey.TRIPS);
+  // FIX: Updated component state to use the local SortKeyValues constant for its initial value.
+  const [sortKey, setSortKey] = useState<SortKey>(SortKeyValues.TRIPS);
 
   const rankedDrivers = useMemo(() => {
     if (!context || !context.users || !context.reviews) return [];
@@ -36,17 +50,18 @@ const RankingsView: React.FC = () => {
       return { ...driver, totalTrips, totalKms, totalKgs, totalM3s, averageRating, reviewCount: driverReviews.length };
     });
 
+    // FIX: Updated the sort logic to use the `SortKeyValues` constant instead of the old enum.
     return driverStats.sort((a, b) => {
       switch (sortKey) {
-        case SortKey.RATING:
+        case SortKeyValues.RATING:
           if (b.averageRating !== a.averageRating) {
             return b.averageRating - a.averageRating;
           }
           return b.reviewCount - a.reviewCount; // Secondary sort by number of reviews
-        case SortKey.KILOGRAMS: return b.totalKgs - a.totalKgs;
-        case SortKey.VOLUME: return b.totalM3s - a.totalM3s;
-        case SortKey.KILOMETERS: return b.totalKms - a.totalKms;
-        case SortKey.TRIPS:
+        case SortKeyValues.KILOGRAMS: return b.totalKgs - a.totalKgs;
+        case SortKeyValues.VOLUME: return b.totalM3s - a.totalM3s;
+        case SortKeyValues.KILOMETERS: return b.totalKms - a.totalKms;
+        case SortKeyValues.TRIPS:
         default:
           return b.totalTrips - a.totalTrips;
       }
@@ -72,12 +87,13 @@ const RankingsView: React.FC = () => {
       <h2 className="text-4xl font-bold mb-2 text-slate-100 staggered-child" style={{animationDelay: '0.1s'}}>Ranking de Fleteros</h2>
       <p className="text-slate-400 mb-8 staggered-child" style={{animationDelay: '0.2s'}}>Los mejores fleteros de la plataforma, clasificados por su desempeño.</p>
       
+      {/* FIX: Updated SortButton props to use the `SortKeyValues` constant. */}
       <div className="relative flex flex-wrap gap-2 mb-8 p-1.5 bg-slate-900/70 rounded-xl border border-slate-800 w-full sm:w-auto staggered-child" style={{animationDelay: '0.3s'}}>
-        <SortButton aSortKey={SortKey.TRIPS}>Por Viajes</SortButton>
-        <SortButton aSortKey={SortKey.RATING}>Mejores Calificados</SortButton>
-        <SortButton aSortKey={SortKey.KILOGRAMS}>Por Kg Totales</SortButton>
-        <SortButton aSortKey={SortKey.VOLUME}>Por m³ Totales</SortButton>
-        <SortButton aSortKey={SortKey.KILOMETERS}>Por Km Recorridos</SortButton>
+        <SortButton aSortKey={SortKeyValues.TRIPS}>Por Viajes</SortButton>
+        <SortButton aSortKey={SortKeyValues.RATING}>Mejores Calificados</SortButton>
+        <SortButton aSortKey={SortKeyValues.KILOGRAMS}>Por Kg Totales</SortButton>
+        <SortButton aSortKey={SortKeyValues.VOLUME}>Por m³ Totales</SortButton>
+        <SortButton aSortKey={SortKeyValues.KILOMETERS}>Por Km Recorridos</SortButton>
       </div>
 
       <div className="space-y-4">

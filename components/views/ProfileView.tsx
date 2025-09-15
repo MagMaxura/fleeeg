@@ -1,9 +1,10 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-import type { Profile, VehicleType } from '../../types';
+// Corrected path to point to the consolidated types file in src/.
+// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+import type { Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select } from '../ui';
-import type { AuthError } from '@supabase/supabase-js';
 
 declare global {
   interface Window {
@@ -41,6 +42,7 @@ const ProfileView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const vehicleFileInputRef = useRef<HTMLInputElement>(null);
@@ -85,19 +87,26 @@ const ProfileView: React.FC = () => {
 
 
     useEffect(() => {
-        let apiKey: string | undefined;
-        try {
-            const env = (import.meta as any).env;
-            apiKey = env?.VITE_GOOGLE_MAPS_API_KEY;
-        } catch (e) {
-            console.warn("VITE_GOOGLE_MAPS_API_KEY not found. Autocomplete disabled.");
-        }
+        // =================================================================================
+        // !! ACTION REQUIRED TO ENABLE ADDRESS AUTOCOMPLETE !!
+        // =================================================================================
+        // To enable Google Maps address autocomplete, you must provide your own API key.
+        // 1. Get a key: https://developers.google.com/maps/documentation/javascript/get-api-key
+        // 2. Paste it into the `apiKey` variable below.
+        // 3. For production, it's recommended to use environment variables.
+        // =================================================================================
+        const apiKey = "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
         
-        if (apiKey) {
-            loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
-            .then(() => initAutocomplete())
-            .catch(err => console.error("Could not load Google Maps script", err));
+        if (!apiKey) {
+            console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");
+            setApiKeyMissing(true);
+            return;
         }
+        setApiKeyMissing(false);
+        
+        loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
+        .then(() => initAutocomplete())
+        .catch(err => console.error("Could not load Google Maps script", err));
     }, [initAutocomplete]);
 
     // Cleanup
@@ -132,20 +141,47 @@ const ProfileView: React.FC = () => {
         setError('');
         setSuccess('');
         setIsLoading(true);
-        
+
         if (!context || !user) {
             setError("Debes estar autenticado para actualizar tu perfil.");
             setIsLoading(false);
             return;
         }
 
-        const authError = await context.updateUserProfile(formState, photoFile, vehiclePhotoFile);
+        // Build a clean payload with only the fields from this form to avoid sending unwanted data.
+        const updatedProfileData: Partial<Profile> = {
+            full_name: formState.full_name,
+            dni: formState.dni,
+            phone: formState.phone,
+            address: formState.address,
+            city: formState.city,
+            province: formState.province,
+        };
+
+        // Add driver-specific fields if the role is 'driver'.
+        if (user.role === 'driver' || formState.role === 'driver') {
+            updatedProfileData.vehicle = formState.vehicle;
+            updatedProfileData.vehicle_type = formState.vehicle_type;
+            updatedProfileData.capacity_kg = formState.capacity_kg ? Number(formState.capacity_kg) : null;
+            updatedProfileData.capacity_m3 = formState.capacity_m3 ? Number(formState.capacity_m3) : null;
+            updatedProfileData.service_radius_km = formState.service_radius_km ? Number(formState.service_radius_km) : null;
+            updatedProfileData.payment_info = formState.payment_info;
+        }
+
+        // Allow setting the role only if it wasn't set before (onboarding completion).
+        if (!user.role && formState.role) {
+            updatedProfileData.role = formState.role;
+        }
+
+        const authError = await context.updateUserProfile(updatedProfileData, photoFile, vehiclePhotoFile);
         
         if (authError) {
-            // Log the technical error for developers
             console.error("Error updating profile:", authError);
-            // Display a more helpful message to the user
-            setError(authError.message || "Ocurrió un error desconocido al actualizar el perfil.");
+            // Improved error message handling to prevent showing '[object Object]'.
+            const errorMessage = (authError && typeof authError.message === 'string')
+                ? authError.message
+                : "Ocurrió un error al actualizar. Verifica que todos los campos sean válidos.";
+            setError(errorMessage);
         } else {
             setSuccess("¡Perfil actualizado con éxito!");
             // Clear file inputs after successful upload
@@ -201,7 +237,12 @@ const ProfileView: React.FC = () => {
                         <Input name="email" label="Correo Electrónico" type="email" value={formState.email || ''} onChange={handleInputChange} required disabled />
                         <div className="grid md:grid-cols-2 gap-6">
                             <Input name="phone" label="Teléfono" type="tel" value={formState.phone || ''} onChange={handleInputChange} required />
-                            <Input name="address" label="Dirección" value={formState.address || ''} onChange={handleInputChange} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
+                            <div>
+                                <Input name="address" label="Dirección" value={formState.address || ''} onChange={handleInputChange} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
+                                {apiKeyMissing && (
+                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Agrega tu API key en <strong>ProfileView.tsx</strong> para activarlo.</p>
+                                )}
+                            </div>
                         </div>
                          <div className="grid md:grid-cols-2 gap-6">
                             <Input name="city" label="Ciudad" value={formState.city || ''} onChange={handleInputChange} />
@@ -218,7 +259,7 @@ const ProfileView: React.FC = () => {
                             </div>
                         </div>
 
-                        {formState.role === 'driver' && (
+                        {(user.role === 'driver' || formState.role === 'driver') && (
                             <>
                                 <hr className="border-slate-700/60 my-4" />
                                 <h3 className="text-xl font-bold text-slate-200 pt-2">Información de Fletero</h3>

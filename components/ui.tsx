@@ -1,5 +1,3 @@
-
-
 import React, { useRef, useState } from 'react';
 
 // --- SPINNER ---
@@ -39,14 +37,13 @@ export const Icon: React.FC<{ type: string; className?: string }> = ({ type, cla
   };
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
       {icons[type]}
     </svg>
   );
 };
 
 // --- BUTTON ---
-// FIX: Added a `size` prop to allow for different button sizes and resolve the type error.
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost';
   isLoading?: boolean;
@@ -54,9 +51,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-// FIX: Destructured the 'size' prop to make it available within the component. This resolves a bug where 'size' was used to select a class but was not defined in the function's scope.
   ({ children, className, variant = 'primary', isLoading = false, size = 'default', ...props }, ref) => {
-    // FIX: Removed size-specific classes (text-base, py-3, px-6) to be handled by the new `size` prop.
     const baseClasses = "relative overflow-hidden font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-px active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
     
     const variantClasses = {
@@ -65,7 +60,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ghost: 'bg-transparent hover:bg-slate-800/50 text-slate-200 focus-visible:ring-slate-400 shadow-none hover:shadow-none'
     };
     
-    // FIX: Added size-specific classes to be applied based on the `size` prop.
     const sizeClasses = {
       default: 'text-base py-3 px-6',
       sm: 'text-sm py-1.5 px-3',
