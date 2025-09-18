@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -358,7 +351,7 @@ const App: React.FC = () => {
     // Step 3: Insert the user's complete profile.
     // The trigger on auth.users will have already created a basic profile row.
     // So we need to UPDATE it with the complete data.
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the update operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error: profileError } = await supabase
         .from('profiles')
         .update(profileUpdatePayload)
@@ -406,7 +399,7 @@ const App: React.FC = () => {
     }
 
     // Update the profile in the database
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the update operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .update(profileUpdatePayload)
@@ -440,7 +433,7 @@ const App: React.FC = () => {
         driver_id: null,
     };
 
-    // FIX: Added `as any` cast to resolve 'never' type error. This is a workaround for a Supabase client typing issue likely caused by a complex module resolution problem in the project setup.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('trips').insert(tripToInsert);
     if (error) {
       // FIX: Improved error logging to display the specific error message instead of '[object Object]'.
@@ -466,7 +459,7 @@ const App: React.FC = () => {
         status: 'pending'
     };
 
-    // FIX: Added `as any` cast to resolve 'never' type error. This is a workaround for a Supabase client typing issue likely caused by a complex module resolution problem in the project setup.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('offers').insert(offerToInsert);
     if (error) {
         console.error("Error placing offer:", error);
@@ -502,7 +495,7 @@ const App: React.FC = () => {
     
     // Perform updates in a transaction-like manner
     // 1. Update Trip
-    // FIX: Added `as any` cast to resolve 'never' type error. This is a workaround for a Supabase client typing issue likely caused by a complex module resolution problem in the project setup.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error: tripError } = await supabase
         .from('trips')
         .update({
@@ -519,7 +512,7 @@ const App: React.FC = () => {
     }
 
     // 2. Update Accepted Offer
-    // FIX: Added `as any` cast to resolve 'never' type error. This is a workaround for a Supabase client typing issue likely caused by a complex module resolution problem in the project setup.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error: offerError } = await supabase
         .from('offers')
         .update({ status: 'accepted' as const })
@@ -533,7 +526,7 @@ const App: React.FC = () => {
         .map(o => o.id);
 
     if (otherOfferIds.length > 0) {
-        // FIX: Added `as any` cast to resolve 'never' type error. This is a workaround for a Supabase client typing issue likely caused by a complex module resolution problem in the project setup.
+        // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
         const { error: rejectError } = await supabase
             .from('offers')
             .update({ status: 'rejected' as const })
@@ -556,7 +549,7 @@ const App: React.FC = () => {
         start_time: new Date().toISOString() 
     };
 
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the update operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     
     if (error) console.error("Error starting trip:", error);
@@ -574,7 +567,7 @@ const App: React.FC = () => {
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
         };
-        // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the update operation.
+        // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 
         if (error) console.error("Error completing trip:", error);
@@ -584,7 +577,7 @@ const App: React.FC = () => {
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
     const updatePayload: TripUpdate = { status: 'paid' as const };
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the update operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     if (error) console.error("Error processing payment:", error);
     else await fetchAllData(); // Kept for immediate feedback
@@ -598,7 +591,7 @@ const App: React.FC = () => {
       sender_id: currentUser.id,
       content: content,
     };
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the insert operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
@@ -615,7 +608,7 @@ const App: React.FC = () => {
         rating,
         comment,
     };
-    // FIX: Removed `as any` cast. The Supabase client is now correctly typed, and the payload type matches the expected type for the insert operation.
+    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
     const { error } = await supabase.from('reviews').insert(reviewToInsert);
     if (error) {
       console.error("Error submitting review:", error);
