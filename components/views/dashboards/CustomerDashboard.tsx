@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
@@ -75,7 +77,8 @@ const CreateTripForm: React.FC = () => {
     const [destinationPlace, setDestinationPlace] = useState<any>(null);
 
     useEffect(() => {
-        const apiKey = "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
+        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
         if (!apiKey) {
             console.warn("Google Maps API Key not provided. Map features will be disabled.");
@@ -375,7 +378,7 @@ const CreateTripForm: React.FC = () => {
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 z-20 p-4 text-center">
                             <Icon type="truck" className="w-12 h-12 text-amber-400 mb-4"/>
                             <h4 className="font-bold text-slate-100 text-lg mb-2">Mapa Deshabilitado</h4>
-                            <p className="text-slate-300 text-sm">Para activar el mapa de rutas, pega tu clave de API de Google Maps en la variable <code>apiKey</code> dentro del archivo <code>CustomerDashboard.tsx</code>.</p>
+                            <p className="text-slate-300 text-sm">Para activar el mapa, configura la variable <strong>VITE_GOOGLE_MAPS_API_KEY</strong> en Vercel.</p>
                         </div>
                     )}
                     {isCalculatingRoute && (

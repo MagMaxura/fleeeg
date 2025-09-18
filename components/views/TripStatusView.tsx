@@ -2,6 +2,8 @@
 
 
 
+
+
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
 declare global {
   interface ImportMeta {
@@ -104,15 +106,9 @@ const Stopwatch: React.FC<{ start_time: number | string }> = ({ start_time }) =>
 
 const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
     const apiKey = useMemo(() => {
-        // =================================================================================
-        // !! ACTION REQUIRED TO ENABLE THE MAP !!
-        // =================================================================================
-        // To display the trip route on the map, you must provide your own API key.
-        // 1. Get a key: https://developers.google.com/maps/documentation/embed/get-api-key
-        // 2. Paste it into the `apiKey` variable below.
-        // 3. For production, it's recommended to use environment variables.
-        // =================================================================================
-        return "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
+        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
+        // It will be provided by Vercel during the build process.
+        return import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     }, []);
     
     const isApiKeyMissing = !apiKey;
@@ -148,7 +144,7 @@ const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
                         <Icon type="truck" className="w-10 h-10 text-amber-400 mb-3" />
                         <h4 className="font-bold text-slate-100 text-lg mb-1">Mapa Deshabilitado</h4>
                         <p className="text-slate-300 text-sm max-w-sm">
-                          Para ver el mapa del viaje, pega tu clave de API de Google Maps en la variable <code>apiKey</code> dentro del archivo <code>TripStatusView.tsx</code>.
+                          Para ver el mapa del viaje, configura la variable de entorno <strong>VITE_GOOGLE_MAPS_API_KEY</strong> en Vercel.
                         </p>
                     </>
                 ) : (
@@ -298,16 +294,11 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
 
   useEffect(() => {
     if (preferenceId) {
-        let publicKey: string | undefined;
-        try {
-            const env = (import.meta as any).env;
-            publicKey = env?.VITE_MERCADO_PAGO_PUBLIC_KEY;
-        } catch (e) {
-            console.warn('Could not access import.meta.env for Mercado Pago key.');
-        }
+        // CRITICAL SECURITY FIX: Public key is now read from environment variables.
+        const publicKey = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY;
 
         if (!publicKey) {
-            console.error("Mercado Pago public key is not set in environment variables (VITE_MERCADO_PAGO_PUBLIC_KEY).");
+            console.error("Mercado Pago public key is not set (VITE_MERCADO_PAGO_PUBLIC_KEY).");
             alert("Error de configuración: no se puede iniciar el proceso de pago.");
             return;
         }

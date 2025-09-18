@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
@@ -91,15 +93,8 @@ const ProfileView: React.FC = () => {
 
 
     useEffect(() => {
-        // =================================================================================
-        // !! ACTION REQUIRED TO ENABLE ADDRESS AUTOCOMPLETE !!
-        // =================================================================================
-        // To enable Google Maps address autocomplete, you must provide your own API key.
-        // 1. Get a key: https://developers.google.com/maps/documentation/javascript/get-api-key
-        // 2. Paste it into the `apiKey` variable below.
-        // 3. For production, it's recommended to use environment variables.
-        // =================================================================================
-        const apiKey = "AIzaSyB_H0D6ezGdlh2x00ap3SoVNeZN013CyWQ"; // <-- PASTE YOUR GOOGLE MAPS API KEY HERE
+        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
         
         if (!apiKey) {
             console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");
@@ -244,7 +239,7 @@ const ProfileView: React.FC = () => {
                             <div>
                                 <Input name="address" label="Dirección" value={formState.address || ''} onChange={handleInputChange} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
                                 {apiKeyMissing && (
-                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Agrega tu API key en <strong>ProfileView.tsx</strong> para activarlo.</p>
+                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Configura tu API key en Vercel para activarlo.</p>
                                 )}
                             </div>
                         </div>
