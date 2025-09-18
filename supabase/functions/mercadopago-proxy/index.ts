@@ -2,11 +2,12 @@
 // that don't have Deno types loaded by default (e.g., standard TS servers).
 declare const Deno: any;
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
+
 Deno.serve(async (req: Request) => {
-  // Set CORS headers to be dynamic based on the request origin.
-  const origin = req.headers.get('Origin') || '*';
+  // A simplified, known-good CORS configuration to prevent preflight failures.
   const corsHeaders = {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
@@ -22,15 +23,43 @@ Deno.serve(async (req: Request) => {
     if (!MERCADO_PAGO_TOKEN) {
       throw new Error('La variable de entorno MERCADO_PAGO_TOKEN no está configurada.');
     }
+    
+    // --- Inicializar el cliente de Supabase Admin ---
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Las variables de entorno de Supabase no están configuradas.');
+    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Extrae los detalles del viaje del cuerpo de la solicitud del frontend.
     const { trip } = await req.json();
-    if (!trip || !trip.id || !trip.final_price || !trip.cargo_details) {
-      throw new Error('Faltan detalles del viaje en el payload.');
+    if (!trip || !trip.id || !trip.final_price || !trip.cargo_details || !trip.customer_id || !trip.origin || !trip.destination) {
+      throw new Error('Faltan detalles del viaje en el payload (id, price, details, customer, origin, or destination).');
+    }
+    
+    // --- Obtener los datos completos del cliente ---
+    const { data: customer, error: customerError } = await supabaseAdmin
+      .from('profiles')
+      .select('email, full_name') // Fetch full_name as well
+      .eq('id', trip.customer_id)
+      .single();
+      
+    if (customerError) {
+      console.error('Error fetching customer profile:', customerError);
+      throw new Error(`Error al buscar el perfil del cliente: ${customerError.message}`);
+    }
+    if (!customer) {
+      throw new Error(`No se encontró el cliente con ID: ${trip.customer_id}`);
     }
     
     // Use the request's Origin header for the redirect URLs, with a fallback to production.
     const backUrlOrigin = req.headers.get('Origin') || 'https://fletapp.vercel.app';
+
+    // Split name for Mercado Pago payer info
+    const nameParts = (customer.full_name || '').split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
 
     // --- Crea la "Preferencia de Pago" para Mercado Pago ---
     const preference = {
@@ -44,6 +73,11 @@ Deno.serve(async (req: Request) => {
           unit_price: trip.final_price,
         },
       ],
+      payer: {
+        email: customer.email,
+        name: firstName,
+        surname: lastName,
+      },
       // URLs a las que Mercado Pago redirigirá al usuario después del pago.
       back_urls: {
         success: `${backUrlOrigin}?payment_status=success&trip_id=${trip.id}`,

@@ -1,8 +1,10 @@
 
 
+
+
 import React, { useState, useContext, useEffect } from 'react';
-import { AppContext } from '../../AppContext';
-import { Button, Input, Card } from '../ui';
+import { AppContext } from '../../AppContext.ts';
+import { Button, Input, Card } from '../ui.tsx';
 
 const LoginView: React.FC = () => {
     const context = useContext(AppContext);

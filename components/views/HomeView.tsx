@@ -5,12 +5,12 @@
 
 
 import React, { useContext, useState } from 'react';
-import { AppContext } from '../../AppContext';
+import { AppContext } from '../../AppContext.ts';
 // FIX: Changed a value import of a type to a type-only import to resolve a module resolution issue.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for the `View` type, which was moved to AppContext.ts to break a circular dependency.
-import type { View } from '../../AppContext';
+// FIX: Updated import for the `View` type, which was moved to src/types.ts to break a circular dependency.
+import type { View } from '../../src/types.ts';
 
 const TruckIcon = ({ className, isExiting }: { className?: string; isExiting?: boolean }) => (
     <svg 
@@ -71,10 +71,9 @@ const HomeView: React.FC = () => {
   const handleStart = () => {
     if (!context || isExiting) return;
     
-    // Play sound on user interaction
-    // FIX: Replaced original audio URL with a known-good public URL to prevent loading errors.
-    const audio = new Audio('https://bigsoundbank.com/UPLOAD/mp3/1590.mp3');
-    audio.play().catch(e => console.error("Error playing sound:", e));
+    // Startup sound removed as per user request.
+    // const audio = new Audio('https://bigsoundbank.com/UPLOAD/mp3/0212.mp3');
+    // audio.play().catch(e => console.error("Error playing sound:", e));
 
     setIsExiting(true);
 

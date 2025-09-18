@@ -1,14 +1,16 @@
-import React from 'react';
-// FIX: Moved AppContextType and related app-specific types here to break a circular dependency
-// that was causing the Supabase client to be untyped. This file now defines and exports these types.
-import type { Dispatch, SetStateAction } from 'react';
-import type { Profile, Trip, Review, Offer, NewTrip } from './src/types.ts';
-
-export type SortKey = 'trips' | 'kilograms' | 'volume' | 'kilometers' | 'rating';
-export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile';
-
-// A simplified local error type to avoid a direct dependency on @supabase/supabase-js.
-export type SimpleAuthError = { name: string; message: string; };
+import React, { Dispatch, SetStateAction } from 'react';
+// FIX: Moved AppContextType here to break a circular dependency with src/types.ts.
+// This allows src/types.ts to remain dependency-free, which is critical for
+// ensuring the Supabase client is correctly typed.
+import type { 
+    Profile, 
+    Trip, 
+    Review, 
+    Offer, 
+    View, 
+    NewTrip, 
+    SimpleAuthError 
+} from './src/types.ts';
 
 // The shape of the global application context.
 export interface AppContextType {

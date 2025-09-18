@@ -1,10 +1,14 @@
+
+
+
+
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
-import { AppContext } from '../../AppContext';
+import { AppContext } from '../../AppContext.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
 import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
-import { Button, Input, Card, Icon, Select } from '../ui';
+import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
 declare global {

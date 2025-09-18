@@ -1,10 +1,14 @@
+
+
+
+
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { AppContext } from '../../../AppContext';
+import { AppContext } from '../../../AppContext.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
 import type { Trip, NewTrip } from '../../../src/types.ts';
-import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui';
+import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui.tsx';
 
 declare global {
   interface Window {

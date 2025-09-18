@@ -1,16 +1,21 @@
 
 
 
+
+
+
+
+
 import React, { useContext, useMemo, useState } from 'react';
-import { AppContext } from '../../AppContext';
+import { AppContext } from '../../AppContext.ts';
 // FIX: Changed the import for 'SortKey' to a type-only import to align with the change from enum to type.
 // This ensures that this file only has a type-level dependency on `types.ts`, which is crucial for preventing module resolution errors.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for `SortKey`, which was moved to AppContext.ts to break a circular dependency.
-import type { SortKey } from '../../AppContext';
+// FIX: Updated import for `SortKey`, which was moved to src/types.ts to break a circular dependency.
+import type { SortKey } from '../../src/types.ts';
 import type { TripStatus, UserRole, Driver } from '../../src/types.ts';
-import { Card, StarRating } from '../ui';
+import { Card, StarRating } from '../ui.tsx';
 
 // FIX: Defined a constant object for SortKey values locally.
 // Since the `SortKey` enum was removed from `types.ts` to make it a pure type file,

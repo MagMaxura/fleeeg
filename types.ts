@@ -1,4 +1,3 @@
-// This file is intentionally left blank.
-// All type definitions have been consolidated into the `src/types.ts` file
-// to resolve a module resolution issue that was causing the Supabase client
-// to become untyped.
+// All type definitions have been consolidated into `src/types.ts`
+// to resolve module resolution issues. This file is intentionally left
+// almost blank to avoid confusion. Please import types from `src/types.ts`.

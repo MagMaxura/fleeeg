@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 // FIX: Import the Database type from the central types.ts file to break the circular dependency.
 // This ensures the Supabase client is correctly typed at initialization, resolving the 'never' type errors.

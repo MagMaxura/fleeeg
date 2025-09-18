@@ -1,6 +1,7 @@
+
 import React, { useContext } from 'react';
-import { AppContext } from '../../AppContext';
-import { Card } from '../ui';
+import { AppContext } from '../../AppContext.ts';
+import { Card } from '../ui.tsx';
 
 // --- Illustrations ---
 

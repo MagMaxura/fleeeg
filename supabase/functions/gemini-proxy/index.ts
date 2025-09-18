@@ -3,18 +3,15 @@
 declare const Deno: any;
 
 // Importa los módulos necesarios. '@google/genai' para la IA.
-// FIX: Switched from the potentially unstable `npm:` specifier to a direct `esm.sh` import.
-// This ensures the module is loaded in a web-compatible ES module format that is more
-// reliable in Deno, resolving the "Failed to send a request" error caused by a startup crash.
+// FIX: Switched from the `npm:` specifier to `esm.sh` for better runtime stability
+// in Deno Deploy, addressing potential startup crashes that cause "Failed to fetch" errors.
 import { GoogleGenAI, Type } from 'https://esm.sh/@google/genai@0.24.0';
 
 // --- Lógica Principal de la Función ---
 Deno.serve(async (req: Request) => {
-  // Set CORS headers to be dynamic based on the request origin.
-  // This allows any domain to access the function, which is crucial for development and previews.
-  const origin = req.headers.get('Origin') || '*';
+  // A simplified, known-good CORS configuration to prevent preflight failures.
   const corsHeaders = {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };

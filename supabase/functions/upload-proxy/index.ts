@@ -12,9 +12,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get('Origin') || '*';
+  // A simplified, known-good CORS configuration to prevent preflight failures.
   const corsHeaders = {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
@@ -28,11 +28,20 @@ Deno.serve(async (req: Request) => {
   try {
     // 1. Authenticate the user from the request headers
     console.log('[upload-proxy] Step 1: Authenticating user...');
-    const authHeader = req.headers.get('Authorization')!;
+    // FIX: Replaced non-null assertion `!` with a proper check to prevent the function from crashing if the Authorization header is missing, which would cause a "Failed to fetch" error on the client.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('[upload-proxy] Authentication failed: Authorization header is missing.');
+      throw new Error('Authentication failed: Missing Authorization header.');
+    }
     const jwt = authHeader.replace('Bearer ', '');
     // We need the anon key to initialize the client for user authentication
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    // FIX: Replaced non-null assertions `!` with proper checks for environment variables to make the function more robust and prevent silent crashes.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase URL or Anon Key is not defined in environment variables.');
+    }
 
     const { data: { user }, error: userError } = await createClient(supabaseUrl, supabaseAnonKey)
       .auth.getUser(jwt);
@@ -79,7 +88,11 @@ Deno.serve(async (req: Request) => {
 
     // 4. Initialize Supabase client with Service Role Key to bypass RLS
     console.log('[upload-proxy] Step 4: Initializing Admin Supabase client...');
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // FIX: Replaced non-null assertion `!` with a proper check for the service role key.
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseServiceRoleKey) {
+        throw new Error('Supabase Service Role Key is not defined in environment variables.');
+    }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     console.log('[upload-proxy] Admin client initialized.');
 

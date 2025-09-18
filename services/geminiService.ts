@@ -1,6 +1,9 @@
 
 
-import { supabase } from './supabaseService';
+
+
+
+import { supabase } from './supabaseService.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.

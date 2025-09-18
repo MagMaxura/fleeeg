@@ -1,3 +1,7 @@
+
+
+
+
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
 declare global {
   interface ImportMeta {
@@ -9,15 +13,15 @@ declare global {
 }
 
 import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
-import { AppContext } from '../../AppContext';
+import { AppContext } from '../../AppContext.ts';
 // FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
 // Corrected path to point to the consolidated types file in src/.
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for `View`, which was moved to AppContext.ts to break a circular dependency.
-import type { View } from '../../AppContext';
+// FIX: Updated import for `View`, which was moved to src/types.ts to break a circular dependency.
+import type { View } from '../../src/types.ts';
 import type { Trip, TripStatus, UserRole, Profile, ChatMessage, Review, Offer, Driver } from '../../src/types.ts';
-import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui';
-import { supabase } from '../../services/supabaseService';
+import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
+import { supabase } from '../../services/supabaseService.ts';
 
 // Declaración para que TypeScript reconozca el objeto MercadoPago inyectado por el script
 declare global {

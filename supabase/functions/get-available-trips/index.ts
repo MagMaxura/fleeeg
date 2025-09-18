@@ -6,10 +6,9 @@ declare const Deno: any;
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get('Origin') || '*';
-  // A pristine, known-good CORS header configuration to prevent preflight failures.
+  // A simplified, known-good CORS configuration to prevent preflight failures.
   const corsHeaders = {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };

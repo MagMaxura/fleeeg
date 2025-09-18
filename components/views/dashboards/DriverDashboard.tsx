@@ -1,9 +1,13 @@
+
+
+
+
 import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
-import { AppContext } from '../../../AppContext';
+import { AppContext } from '../../../AppContext.ts';
 // FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
 import type { Trip, Driver, Offer } from '../../../src/types.ts';
-import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui';
-import { supabase } from '../../../services/supabaseService';
+import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
+import { supabase } from '../../../services/supabaseService.ts';
 
 // --- Utility Functions ---
 

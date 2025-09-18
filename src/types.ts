@@ -1,10 +1,6 @@
 // All type definitions are consolidated into this single file to prevent
 // module resolution issues that can lead to an untyped Supabase client.
 
-// FIX: Removed unused 'react' type import to eliminate a potential module resolution conflict point.
-// This file should have zero dependencies to ensure it can be safely imported by the Supabase service.
-
-
 // --- DATABASE SCHEMA TYPE ---
 // This is the single source of truth for the database schema.
 export type Database = {
@@ -224,24 +220,18 @@ export type Database = {
     Functions: {
       [_ in never]: never;
     };
-    Enums: {
-      trip_status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
-      user_role: "customer" | "driver";
-      vehicle_type: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado";
-    };
     CompositeTypes: {
       [_ in never]: never;
     };
   };
 };
 
-export type TripStatusEnum = "requested" | "accepted" | "in_transit" | "completed" | "paid";
-export type UserRoleEnum = "customer" | "driver";
-export type VehicleTypeEnum = "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado";
-
-export type UserRole = UserRoleEnum;
-export type TripStatus = TripStatusEnum;
-export type VehicleType = VehicleTypeEnum;
+// --- ENUM-LIKE TYPES ---
+// Derived directly from the inlined types in the table definitions to avoid circular dependencies
+// that were causing the Supabase client to become untyped and break real-time functionality.
+export type TripStatus = Database['public']['Tables']['trips']['Row']['status'];
+export type UserRole = Database['public']['Tables']['profiles']['Row']['role'];
+export type VehicleType = Database['public']['Tables']['profiles']['Row']['vehicle_type'];
 
 // --- Main Data Types (from Supabase schema) ---
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -275,11 +265,14 @@ export interface Driver extends Profile {
   role: 'driver';
 }
 
-// --- App-specific Enums and Types ---
-// NOTE: App-level types like `View` and `SortKey` have been moved to `AppContext.ts`
-// to break a circular dependency that was causing Supabase client typing issues.
-
 
 // --- App Context Specific Types ---
-// NOTE: AppContextType and related types have been moved to AppContext.ts
-// to break a circular dependency that was causing Supabase client typing issues.
+
+export type SortKey = 'trips' | 'kilograms' | 'volume' | 'kilometers' | 'rating';
+export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile';
+
+// A simplified local error type to avoid a direct dependency on @supabase/supabase-js.
+export type SimpleAuthError = { name: string; message: string; };
+
+// NOTE: AppContextType has been moved to AppContext.ts to break a circular dependency
+// that was preventing the Supabase client from being typed correctly.
