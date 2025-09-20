@@ -1,16 +1,12 @@
 
-
-
-
-
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
 // Foundational types and context
 // FIX: Corrected the import path for types. Assuming a standard project structure where all source files are in `src`, the path should be relative to the current directory, not include `src/`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './src/types.ts';
+// FIX: Corrected import path for types to resolve module resolution issues.
+import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './types.ts';
 // FIX: Moved AppContextType and View to src/types.ts to break a circular dependency.
 // FIX: Added file extensions to all local module imports to fix the Supabase client 'never' type errors. This is required due to a module resolution issue in the project setup.
 // FIX: Update import for AppContextType to point to AppContext.ts, completing the circular dependency fix.
@@ -360,7 +356,7 @@ const App: React.FC = () => {
     // Step 3: Update the user's profile row created by the auth trigger.
     const { error: profileError } = await supabase
       .from('profiles')
-      // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+      // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
       .update(profileUpdatePayload)
       .eq('id', userId);
 
@@ -410,7 +406,7 @@ const App: React.FC = () => {
     // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
-        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+        // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
         .update(profileUpdatePayload)
         .eq('id', userId)
         .select()
@@ -442,7 +438,7 @@ const App: React.FC = () => {
         driver_id: null,
     };
 
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('trips').insert(tripToInsert);
     if (error) {
       // FIX: Improved error logging to display the specific error message instead of '[object Object]'.
@@ -468,7 +464,7 @@ const App: React.FC = () => {
         status: 'pending'
     };
 
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('offers').insert(offerToInsert);
     if (error) {
         console.error("Error placing offer:", error);
@@ -504,7 +500,7 @@ const App: React.FC = () => {
     
     // Perform updates in a transaction-like manner
     // 1. Update Trip
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error: tripError } = await supabase
         .from('trips')
         .update({
@@ -521,7 +517,7 @@ const App: React.FC = () => {
     }
 
     // 2. Update Accepted Offer
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error: offerError } = await supabase
         .from('offers')
         .update({ status: 'accepted' as const })
@@ -535,7 +531,7 @@ const App: React.FC = () => {
         .map(o => o.id);
 
     if (otherOfferIds.length > 0) {
-        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+        // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
         const { error: rejectError } = await supabase
             .from('offers')
             .update({ status: 'rejected' as const })
@@ -558,7 +554,7 @@ const App: React.FC = () => {
         start_time: new Date().toISOString() 
     };
 
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     
     if (error) console.error("Error starting trip:", error);
@@ -576,7 +572,7 @@ const App: React.FC = () => {
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
         };
-        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+        // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 
         if (error) console.error("Error completing trip:", error);
@@ -586,7 +582,7 @@ const App: React.FC = () => {
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
     const updatePayload: TripUpdate = { status: 'paid' as const };
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     if (error) console.error("Error processing payment:", error);
     else await fetchAllData(); // Kept for immediate feedback
@@ -600,7 +596,7 @@ const App: React.FC = () => {
       sender_id: currentUser.id,
       content: content,
     };
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
@@ -617,7 +613,7 @@ const App: React.FC = () => {
         rating,
         comment,
     };
-    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+    // FIX: Removed 'as any' cast as the Supabase client is now correctly typed.
     const { error } = await supabase.from('reviews').insert(reviewToInsert);
     if (error) {
       console.error("Error submitting review:", error);

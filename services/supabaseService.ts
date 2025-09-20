@@ -1,11 +1,9 @@
 
-
-
-
 import { createClient } from '@supabase/supabase-js';
 // FIX: Corrected the import path for the Database type. Assuming a standard `src` directory structure, the path from `src/services` to `src/types.ts` is `../types.ts`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { Database } from '../src/types.ts';
+// FIX: Corrected import path for the Database type to ensure the Supabase client is correctly typed.
+import type { Database } from '../types.ts';
 
 
 // --- Supabase Client Initialization ---

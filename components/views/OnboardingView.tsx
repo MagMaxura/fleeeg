@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
@@ -186,6 +188,9 @@ const OnboardingView: React.FC = () => {
           photo_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(baseUser.full_name)}&background=0f172a&color=fff&size=200`,
           vehicle_photo_url: null,
           payment_info: data.payment_info,
+          // FIX: Add missing properties to conform to Profile type
+          vehicle_photo_path: null,
+          filter_preferences: null,
         }
       : {
           ...baseUser,
@@ -198,6 +203,9 @@ const OnboardingView: React.FC = () => {
           photo_url: null,
           vehicle_photo_url: null,
           payment_info: null,
+          // FIX: Add missing properties to conform to Profile type
+          vehicle_photo_path: null,
+          filter_preferences: null,
         };
 
     // FIX: Removed unnecessary `as Omit<Profile, 'id'>` cast. With types loading correctly, TypeScript can infer this.

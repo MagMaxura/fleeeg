@@ -56,10 +56,12 @@ Deno.serve(async (req: Request) => {
     // Use the request's Origin header for the redirect URLs, with a fallback to production.
     const backUrlOrigin = req.headers.get('Origin') || 'https://fletapp.vercel.app';
 
-    // Split name for Mercado Pago payer info
-    const nameParts = (customer.full_name || '').split(' ');
+    // FIX: Robustly split name for Mercado Pago payer info.
+    // Mercado Pago requires both a name and a surname. This logic handles single-word names.
+    const fullName = (customer.full_name || 'Cliente Fletapp').trim();
+    const nameParts = fullName.split(/\s+/);
     const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ');
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName;
 
     // --- Crea la "Preferencia de Pago" para Mercado Pago ---
     const preference = {

@@ -6,6 +6,8 @@
 
 
 
+
+
 import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 // FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views/dashboards` to `src/types.ts` is `../../../types.ts`.
@@ -95,6 +97,10 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean }> = ({ trip, isAva
             setError('Debes ingresar un precio para la oferta.');
             return;
         }
+        if (Number(offerPrice) <= 0) {
+            setError('El precio ofertado debe ser un número positivo.');
+            return;
+        }
         setError('');
         setIsLoading(true);
         await context.placeOffer(trip.id, Number(offerPrice), offerNotes);
@@ -127,6 +133,7 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean }> = ({ trip, isAva
                         value={offerPrice}
                         onChange={(e) => setOfferPrice(e.target.value)}
                         placeholder="Ej: 28000"
+                        min="1"
                     />
                     <TextArea 
                         label="Notas para el Cliente (opcional)"
