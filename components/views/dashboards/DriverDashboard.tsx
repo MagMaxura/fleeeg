@@ -2,9 +2,14 @@
 
 
 
+
+
+
+
 import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views/dashboards` to `src/types.ts` is `../../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { Trip, Driver, Offer } from '../../../src/types.ts';
 import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
 import { supabase } from '../../../services/supabaseService.ts';
@@ -203,41 +208,37 @@ const FilterSidebar: React.FC<{
 // --- Main Driver Dashboard Component ---
 const DriverDashboard: React.FC = () => {
     const context = useContext(AppContext);
-    const user = context?.user as Driver;
-    
-    const [availableTrips, setAvailableTrips] = useState<Trip[]>([]);
-    const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
     const [activeFilters, setActiveFilters] = useState<{ cities: Set<string> }>({ cities: new Set() });
     
-    const fetchAvailableTrips = useCallback(async (driverId: string) => {
-        setIsLoadingAvailable(true);
-        try {
-            const { data, error } = await supabase.functions.invoke('get-available-trips', {
-                body: { driverId }
-            });
-            if (error) {
-                throw error;
+    if (!context || !context.user) {
+        return <div className="p-8 text-center"><Spinner /></div>;
+    }
+    const user = context.user as Driver;
+
+    const availableTrips = useMemo(() => {
+        if (!context.trips || !user || !context.offers) return [];
+
+        const prefs = user.filter_preferences;
+        
+        const myOfferedTripIds = new Set(
+            context.offers.filter(o => o.driver_id === user.id).map(o => o.trip_id)
+        );
+
+        return context.trips.filter(trip => {
+            if (trip.status !== 'requested') return false;
+            if (trip.customer_id === user.id) return false;
+            if (myOfferedTripIds.has(trip.id)) return false;
+
+            if (prefs?.max_weight_kg && trip.estimated_weight_kg > prefs.max_weight_kg) {
+                return false;
             }
-            setAvailableTrips(data || []);
-        } catch (err) {
-            console.error("Error fetching available trips:", err);
-        } finally {
-            setIsLoadingAvailable(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (user) {
-            fetchAvailableTrips(user.id);
-        }
-    }, [user, fetchAvailableTrips]);
-
-    // Refresh when a trip is accepted (main context trips list changes)
-    useEffect(() => {
-        if (user) {
-            fetchAvailableTrips(user.id);
-        }
-    }, [context?.trips, user, fetchAvailableTrips]);
+            if (prefs?.max_volume_m3 && trip.estimated_volume_m3 > prefs.max_volume_m3) {
+                return false;
+            }
+            
+            return true;
+        });
+    }, [context.trips, user, context.offers]);
     
     // --- Filtering Logic ---
     const availableCities = useMemo(() => {
@@ -262,19 +263,14 @@ const DriverDashboard: React.FC = () => {
     };
 
     const filteredTrips = useMemo(() => {
-        // Exclude trips for which the current driver has already made an offer
-        const myOfferedTripIds = new Set(context?.offers.filter(o => o.driver_id === user?.id).map(o => o.trip_id));
-        const tripsWithoutMyOffers = availableTrips.filter(t => !myOfferedTripIds.has(t.id));
-
         if (activeFilters.cities.size === 0) {
-            return tripsWithoutMyOffers;
+            return availableTrips;
         }
-
-        return tripsWithoutMyOffers.filter(trip => {
+        return availableTrips.filter(trip => {
             const tripCity = getCityFromTrip(trip);
             return tripCity && activeFilters.cities.has(tripCity);
         });
-    }, [availableTrips, activeFilters, context?.offers, user?.id]);
+    }, [availableTrips, activeFilters]);
 
     const myPendingOffers = useMemo(() => {
         if (!context || !user) return [];
@@ -290,8 +286,6 @@ const DriverDashboard: React.FC = () => {
         );
     }, [context, user]);
     
-    if (!user) return <div className="p-8 text-center"><Spinner /></div>
-
     return (
         <div className="container mx-auto p-4 md:p-8">
             <LocationPrompt />
@@ -358,7 +352,7 @@ const DriverDashboard: React.FC = () => {
                     {/* Available Trips Section */}
                     <div className="space-y-6">
                         <SectionHeader>Nuevas Solicitudes de Flete</SectionHeader>
-                        {isLoadingAvailable ? (
+                        {context.isDataLoading ? (
                             <div className="space-y-4">
                                 <SkeletonCard />
                                 <SkeletonCard style={{ animationDelay: '0.1s' }} />

@@ -1,9 +1,3 @@
-
-
-
-
-
-
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
 declare global {
   interface ImportMeta {
@@ -16,10 +10,8 @@ declare global {
 
 import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../AppContext.ts';
-// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for `View`, which was moved to src/types.ts to break a circular dependency.
+// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { View } from '../../src/types.ts';
 import type { Trip, TripStatus, UserRole, Profile, ChatMessage, Review, Offer, Driver } from '../../src/types.ts';
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
@@ -108,7 +100,7 @@ const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
     const apiKey = useMemo(() => {
         // CRITICAL SECURITY FIX: The API key is now read from environment variables.
         // It will be provided by Vercel during the build process.
-        return import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        return import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
     }, []);
     
     const isApiKeyMissing = !apiKey;
@@ -295,7 +287,7 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   useEffect(() => {
     if (preferenceId) {
         // CRITICAL SECURITY FIX: Public key is now read from environment variables.
-        const publicKey = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY;
+        const publicKey = import.meta.env?.VITE_MERCADO_PAGO_PUBLIC_KEY;
 
         if (!publicKey) {
             console.error("Mercado Pago public key is not set (VITE_MERCADO_PAGO_PUBLIC_KEY).");

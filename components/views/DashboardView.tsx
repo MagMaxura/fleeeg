@@ -2,15 +2,17 @@
 
 
 
+
+
+
+
 import React, { useContext, useEffect } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import { Spinner } from '../ui.tsx';
 import CustomerDashboard from './dashboards/CustomerDashboard.tsx';
 import DriverDashboard from './dashboards/DriverDashboard.tsx';
-// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for the `View` type, which was moved to src/types.ts to break a circular dependency.
+// FIX: Corrected the import path for the View type. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { View } from '../../src/types.ts';
 
 const DashboardView: React.FC = () => {

@@ -33,11 +33,12 @@ export const Icon: React.FC<{ type: string; className?: string }> = ({ type, cla
     creditCard: <path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6.75 2.25h3.375" strokeLinecap="round" strokeLinejoin="round" />,
     mercadoPago: <path d="M18.75 3.75H5.25C4.00736 3.75 3 4.75736 3 6V18C3 19.2426 4.00736 20.25 5.25 20.25H18.75C19.9926 20.25 21 19.2426 21 18V6C21 4.75736 19.9926 3.75 18.75 3.75ZM8.625 15.75L6 12L7.5 10.125L10.125 12.75L16.5 7.125L18 9L10.125 15.75H8.625Z" strokeLinecap="round" strokeLinejoin="round"/>,
     qrCode: <path d="M4 4h6v6H4V4zm8 0h6v6h-6V4zM4 14h6v6H4v-6zm8 3h2v2h-2v-2zm-3-3h2v2h-2v-2zm6 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3-3h2v2h-2v-2z" strokeLinecap="round" strokeLinejoin="round" />,
-    checkCircle: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    checkCircle: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    mail: <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
   };
 
   return (
-    <svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
       {icons[type]}
     </svg>
   );

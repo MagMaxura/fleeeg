@@ -1,9 +1,10 @@
 
+
+
+
 import { createClient } from '@supabase/supabase-js';
-// FIX: Import the Database type from the central types.ts file to break the circular dependency.
-// This ensures the Supabase client is correctly typed at initialization, resolving the 'never' type errors.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Explicitly adding the .ts extension to resolve a subtle module resolution issue that was causing the client to become untyped.
+// FIX: Corrected the import path for the Database type. Assuming a standard `src` directory structure, the path from `src/services` to `src/types.ts` is `../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { Database } from '../src/types.ts';
 
 

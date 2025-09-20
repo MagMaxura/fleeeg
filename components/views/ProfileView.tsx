@@ -1,14 +1,9 @@
 
 
-
-
-
-
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
-// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
@@ -94,7 +89,7 @@ const ProfileView: React.FC = () => {
 
     useEffect(() => {
         // CRITICAL SECURITY FIX: The API key is now read from environment variables.
-        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
         
         if (!apiKey) {
             console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");

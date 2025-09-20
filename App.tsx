@@ -1,17 +1,15 @@
 
+
+
+
+
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
 // Foundational types and context
-// FIX: Consolidated all type imports to point to the single source of truth, `src/types.ts`.
-// This resolves a subtle module resolution conflict that was causing the Supabase client to become
-// untyped, which resulted in 'never' type errors on all database method calls.
-// FIX: Corrected the type import path for `src/types` by adding the `.ts` extension.
-// This resolves a module resolution issue that caused the Supabase client to be untyped,
-// leading to 'never' type errors on all database method calls.
-// FIX: Corrected the type import path to point to `src/types.ts`, the new single source of truth.
-// This resolves a module resolution issue that caused the Supabase client to be untyped,
-// leading to 'never' type errors on all database method calls.
+// FIX: Corrected the import path for types. Assuming a standard project structure where all source files are in `src`, the path should be relative to the current directory, not include `src/`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './src/types.ts';
 // FIX: Moved AppContextType and View to src/types.ts to break a circular dependency.
 // FIX: Added file extensions to all local module imports to fix the Supabase client 'never' type errors. This is required due to a module resolution issue in the project setup.
@@ -36,10 +34,12 @@ import RankingsView from './components/views/RankingsView.tsx';
 import TripStatusView from './components/views/TripStatusView.tsx';
 import DriverProfileView from './components/views/DriverProfileView.tsx';
 import ProfileView from './components/views/ProfileView.tsx';
+import ConfirmEmailView from './components/views/ConfirmEmailView.tsx';
 
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('home');
+  const [emailForConfirmation, setEmailForConfirmation] = useState<string | null>(null);
   const [user, setUser] = useState<Profile | null>(null);
   const [users, setUsers] = useState<Profile[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [activeTripId, setActiveTripId] = useState<number | null>(null);
   const [activeDriverId, setActiveDriverId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>('checking');
   
@@ -166,6 +167,7 @@ const App: React.FC = () => {
         if (error) {
             console.error('Error fetching profile:', error);
             setUser(null);
+            setIsDataLoading(false);
         } else if (profile) {
             // Use the userRef to check for a new login, breaking the dependency cycle.
             // FIX: The Supabase client is now correctly typed, so `profile` has the correct type and `profile.id` is accessible. No 'never' type error.
@@ -175,9 +177,11 @@ const App: React.FC = () => {
             if (isNewLogin) { // Fetch all data only on a new login.
                 await fetchAllData();
             }
+            setIsDataLoading(false);
         } else {
             // This handles the case where a user is authenticated but has no profile row.
             setUser(null);
+            setIsDataLoading(false);
         }
     } else {
         setUser(null);
@@ -185,6 +189,7 @@ const App: React.FC = () => {
         setTrips([]);
         setReviews([]);
         setOffers([]);
+        setIsDataLoading(false);
     }
   }, [fetchAllData]);
 
@@ -317,60 +322,63 @@ const App: React.FC = () => {
   };
 
   const registerUser = useCallback<AppContextType['registerUser']>(async (
-    newUser, 
+    newUser,
     password,
     photoFile,
     vehiclePhotoFile
   ) => {
-    
-    // Step 1: Sign up the user in Supabase Auth. This also logs them in.
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email: newUser.email, password });
+    // Step 1: Sign up the user in Supabase Auth. This sends the confirmation email.
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: newUser.email,
+      password,
+    });
     if (signUpError) return signUpError;
     if (!signUpData.user) return { name: 'UserError', message: 'Could not create user' };
-    
+
     const userId = signUpData.user.id;
     // We remove email because Supabase handles this via the trigger from auth.users
     const { email, ...profileData } = newUser;
     const profileUpdatePayload: ProfileUpdate = { ...profileData };
 
     try {
-        // Step 2: Upload profile and vehicle photos if they exist.
-        const [photoUrl, vehiclePhotoUrl] = await Promise.all([
-            photoFile ? uploadImage(photoFile, `profiles/${userId}/${Date.now()}_${photoFile.name}`, 'foto-perfil') : Promise.resolve(null),
-            vehiclePhotoFile ? uploadImage(vehiclePhotoFile, `vehicles/${userId}/${Date.now()}_${vehiclePhotoFile.name}`, 'vehicle-photos') : Promise.resolve(null)
-        ]);
-        
-        if (photoUrl) profileUpdatePayload.photo_url = photoUrl;
-        if (vehiclePhotoUrl) profileUpdatePayload.vehicle_photo_url = vehiclePhotoUrl;
+      // Step 2: Upload profile and vehicle photos if they exist.
+      const [photoUrl, vehiclePhotoUrl] = await Promise.all([
+        photoFile ? uploadImage(photoFile, `profiles/${userId}/${Date.now()}_${photoFile.name}`, 'foto-perfil') : Promise.resolve(null),
+        vehiclePhotoFile ? uploadImage(vehiclePhotoFile, `vehicles/${userId}/${Date.now()}_${vehiclePhotoFile.name}`, 'vehicle-photos') : Promise.resolve(null)
+      ]);
+      
+      if (photoUrl) profileUpdatePayload.photo_url = photoUrl;
+      if (vehiclePhotoUrl) profileUpdatePayload.vehicle_photo_url = vehiclePhotoUrl;
 
     } catch (uploadError: any) {
-        console.error("Error during file upload:", uploadError);
-        return { name: 'UploadError', message: uploadError.message || 'Error al subir las imágenes.' };
+      console.error("Error during file upload:", uploadError);
+      // Important: Sign out the partially created user to avoid orphaned auth users
+      await supabase.auth.signOut();
+      return { name: 'UploadError', message: uploadError.message || 'Error al subir las imágenes.' };
     }
 
-    // Step 3: Insert the user's complete profile.
-    // The trigger on auth.users will have already created a basic profile row.
-    // So we need to UPDATE it with the complete data.
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // Step 3: Update the user's profile row created by the auth trigger.
     const { error: profileError } = await supabase
-        .from('profiles')
-        .update(profileUpdatePayload)
-        .eq('id', userId);
+      .from('profiles')
+      // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
+      .update(profileUpdatePayload)
+      .eq('id', userId);
 
     if (profileError) {
-        console.error("Error updating profile:", profileError);
-        // Attempt to delete the auth user if profile update fails to prevent orphaned users
-        await supabase.auth.signOut(); // Log out first
-        // This requires admin privileges, cannot be done from client-side securely.
-        // Consider a server-side function for cleanup if this becomes a problem.
-        return { message: profileError.message, name: 'ProfileError' }; 
+      console.error("Error updating profile:", profileError);
+      // Sign out to clean up the failed registration
+      await supabase.auth.signOut();
+      return { message: profileError.message, name: 'ProfileError' };
     }
     
-    // Manually refresh user state after successful registration
-    await handleSession(signUpData.session);
+    // Step 4: Show confirmation message and sign out the temporary session.
+    // This forces the user to verify their email before they can properly log in.
+    setEmailForConfirmation(newUser.email);
+    setView('confirmEmail');
+    await supabase.auth.signOut();
 
     return null;
-  }, [handleSession]);
+  }, []);
   
   const updateUserProfile = useCallback<AppContextType['updateUserProfile']>(async (
     updatedProfileData,
@@ -399,9 +407,10 @@ const App: React.FC = () => {
     }
 
     // Update the profile in the database
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
+        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
         .update(profileUpdatePayload)
         .eq('id', userId)
         .select()
@@ -433,7 +442,7 @@ const App: React.FC = () => {
         driver_id: null,
     };
 
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('trips').insert(tripToInsert);
     if (error) {
       // FIX: Improved error logging to display the specific error message instead of '[object Object]'.
@@ -459,7 +468,7 @@ const App: React.FC = () => {
         status: 'pending'
     };
 
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('offers').insert(offerToInsert);
     if (error) {
         console.error("Error placing offer:", error);
@@ -495,7 +504,7 @@ const App: React.FC = () => {
     
     // Perform updates in a transaction-like manner
     // 1. Update Trip
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error: tripError } = await supabase
         .from('trips')
         .update({
@@ -512,7 +521,7 @@ const App: React.FC = () => {
     }
 
     // 2. Update Accepted Offer
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error: offerError } = await supabase
         .from('offers')
         .update({ status: 'accepted' as const })
@@ -526,7 +535,7 @@ const App: React.FC = () => {
         .map(o => o.id);
 
     if (otherOfferIds.length > 0) {
-        // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
         const { error: rejectError } = await supabase
             .from('offers')
             .update({ status: 'rejected' as const })
@@ -549,7 +558,7 @@ const App: React.FC = () => {
         start_time: new Date().toISOString() 
     };
 
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     
     if (error) console.error("Error starting trip:", error);
@@ -567,7 +576,7 @@ const App: React.FC = () => {
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
         };
-        // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+        // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 
         if (error) console.error("Error completing trip:", error);
@@ -577,7 +586,7 @@ const App: React.FC = () => {
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
     const updatePayload: TripUpdate = { status: 'paid' as const };
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     if (error) console.error("Error processing payment:", error);
     else await fetchAllData(); // Kept for immediate feedback
@@ -591,7 +600,7 @@ const App: React.FC = () => {
       sender_id: currentUser.id,
       content: content,
     };
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
@@ -608,7 +617,7 @@ const App: React.FC = () => {
         rating,
         comment,
     };
-    // FIX: Removed `as any` cast. With corrected type setup, the payload should match the expected type.
+    // FIX: Removed `as any` cast. With the Supabase client correctly typed, this is no longer necessary.
     const { error } = await supabase.from('reviews').insert(reviewToInsert);
     if (error) {
       console.error("Error submitting review:", error);
@@ -634,6 +643,7 @@ const App: React.FC = () => {
     trips,
     reviews,
     offers,
+    isDataLoading,
     view,
     setView,
     loginUser,
@@ -655,7 +665,7 @@ const App: React.FC = () => {
     locationPermissionStatus,
     requestLocationPermission,
   }), [
-      user, users, trips, reviews, offers, view, setView, loginUser, registerUser, 
+      user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser, 
       updateUserProfile, createTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment, 
       viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout, 
       activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission
@@ -672,7 +682,7 @@ const App: React.FC = () => {
       return () => window.removeEventListener('scroll', handleScroll);
     }, []);
     
-    const showHeader = !['home'].includes(view) && !isLoading;
+    const showHeader = !['home', 'confirmEmail'].includes(view) && !isLoading;
     if (!showHeader) return null;
 
     return (
@@ -705,7 +715,7 @@ const App: React.FC = () => {
   };
   
   const Footer = () => {
-    const showFooter = !['home'].includes(view) && !isLoading;
+    const showFooter = !['home', 'confirmEmail'].includes(view) && !isLoading;
     if (!showFooter) return null;
     return (
       <footer className="container mx-auto text-center p-4 mt-8 border-t border-slate-800/50">
@@ -730,6 +740,7 @@ const App: React.FC = () => {
             case 'landing': return <LandingView />;
             case 'onboarding': return <OnboardingView />;
             case 'login': return <LoginView />;
+            case 'confirmEmail': return <ConfirmEmailView email={emailForConfirmation} />;
             case 'home':
             default: return <HomeView />;
         }

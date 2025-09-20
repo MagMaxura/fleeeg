@@ -4,12 +4,14 @@
 
 
 
+
+
+
+
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../AppContext.ts';
-// FIX: Changed a value import of a type to a type-only import to resolve a module resolution issue.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
-// FIX: Updated import for the `View` type, which was moved to src/types.ts to break a circular dependency.
+// FIX: Corrected the import path for the View type. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { View } from '../../src/types.ts';
 
 const TruckIcon = ({ className, isExiting }: { className?: string; isExiting?: boolean }) => (

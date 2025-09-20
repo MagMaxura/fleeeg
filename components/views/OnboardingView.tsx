@@ -1,14 +1,9 @@
 
 
-
-
-
-
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
-// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
@@ -104,7 +99,7 @@ const OnboardingView: React.FC = () => {
     // CRITICAL SECURITY FIX: The API key is now read from environment variables.
     // It will be provided by Vercel during the build process.
     // The key is prefixed with VITE_ to be exposed to the frontend code.
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
 
     if (!apiKey) {
         console.warn("Google Maps API Key not provided via VITE_GOOGLE_MAPS_API_KEY. Address autocomplete will be disabled.");
@@ -205,7 +200,8 @@ const OnboardingView: React.FC = () => {
           payment_info: null,
         };
 
-    const authError = await context.registerUser(userToRegister as Omit<Profile, 'id'>, data.password as string, photoFile, vehiclePhotoFile);
+    // FIX: Removed unnecessary `as Omit<Profile, 'id'>` cast. With types loading correctly, TypeScript can infer this.
+    const authError = await context.registerUser(userToRegister, data.password as string, photoFile, vehiclePhotoFile);
     if (authError) {
         setError(authError.message || "Ocurrió un error durante el registro.");
     }

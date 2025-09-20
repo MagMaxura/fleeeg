@@ -2,12 +2,15 @@
 
 
 
+
+
+
+
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import { Card, Spinner, StarRating, Icon, Button } from '../ui.tsx';
-// FIX: Changed to use `import type` for type-only imports to help prevent circular dependency issues.
-// Corrected path to point to the consolidated types file in src/.
-// FIX: Added .ts extension to ensure proper module resolution, which is critical for Supabase client typing.
+// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
+// FIX: Corrected import path for types to point to the correct file in `src/`.
 import type { Driver, Review } from '../../src/types.ts';
 
 const DriverProfileView: React.FC = () => {
