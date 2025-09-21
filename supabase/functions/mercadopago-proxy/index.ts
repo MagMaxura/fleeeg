@@ -34,8 +34,17 @@ Deno.serve(async (req: Request) => {
 
     // Extrae los detalles del viaje del cuerpo de la solicitud del frontend.
     const { trip } = await req.json();
-    if (!trip || !trip.id || !trip.final_price || !trip.cargo_details || !trip.customer_id || !trip.origin || !trip.destination) {
-      throw new Error('Faltan detalles del viaje en el payload (id, price, details, customer, origin, or destination).');
+    if (!trip) {
+      throw new Error('Falta el objeto "trip" en el payload.');
+    }
+    // Validar campos esenciales del viaje
+    if (!trip.id || !trip.cargo_details || !trip.customer_id || !trip.origin || !trip.destination) {
+      throw new Error('Faltan detalles esenciales del viaje en el payload (id, details, customer, origin, or destination).');
+    }
+    // Validación CRÍTICA para el precio. Mercado Pago requiere un valor numérico positivo.
+    if (typeof trip.final_price !== 'number' || trip.final_price <= 0) {
+      console.error(`Error de pago: Precio final inválido o ausente para el viaje ID ${trip.id}. Valor recibido: ${trip.final_price}`);
+      throw new Error(`El precio final del viaje debe ser un número positivo para poder procesar el pago.`);
     }
     
     // --- Obtener los datos completos del cliente ---
@@ -54,7 +63,15 @@ Deno.serve(async (req: Request) => {
     }
     
     // Use the request's Origin header for the redirect URLs, with a fallback to production.
-    const backUrlOrigin = req.headers.get('Origin') || 'https://fletapp.vercel.app';
+    let backUrlOrigin = req.headers.get('Origin') || 'https://fletapp.vercel.app';
+
+    // FIX: Sanitize backUrlOrigin for local development. Mercado Pago requires public HTTPS URLs.
+    // This prevents API rejection when testing from 'localhost'.
+    if (backUrlOrigin.includes('localhost') || backUrlOrigin.includes('127.0.0.1')) {
+        backUrlOrigin = 'https://fletapp.vercel.app'; // Force production URL for local dev callbacks.
+        console.log(`[mercadopago-proxy] Detected local development. Overriding back_urls origin to: ${backUrlOrigin}`);
+    }
+
 
     // FIX: Robustly split name for Mercado Pago payer info.
     // Mercado Pago requires both a name and a surname. This logic handles single-word names.
@@ -100,9 +117,27 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!response.ok) {
-        const errorBody = await response.text();
-        console.error('Error de la API de Mercado Pago:', errorBody);
-        throw new Error(`Error al crear la preferencia de pago: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error de la API de Mercado Pago:', errorText);
+        
+        let errorMessage = `Error al crear la preferencia de pago: ${response.statusText}`;
+        try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson && errorJson.message) {
+                errorMessage = `Error de la API de Mercado Pago: ${errorJson.message}`;
+                // Proporciona una guía de depuración específica para el error 'invalid_token'.
+                if (errorJson.message === 'invalid_token') {
+                    errorMessage += '. Por favor, verifica que la variable de entorno MERCADO_PAGO_TOKEN esté configurada correctamente en los secretos de tu función de Supabase.';
+                }
+            }
+        } catch (e) {
+            // El cuerpo del error no era JSON, así que usamos el texto plano.
+            if(errorText) {
+                errorMessage = `Error de la API de Mercado Pago: ${errorText}`;
+            }
+        }
+        
+        throw new Error(errorMessage);
     }
 
     const data = await response.json();

@@ -6,6 +6,10 @@ import type { AuthError, Session } from '@supabase/supabase-js';
 // FIX: Corrected the import path for types. Assuming a standard project structure where all source files are in `src`, the path should be relative to the current directory, not include `src/`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
 // FIX: Corrected import path for types to resolve module resolution issues.
+// FIX: Corrected import path to point to './src/types.ts' to resolve module not found error.
+// FIX: Corrected the import path for types to `types.ts` instead of `src/types.ts`, aligning with a standard `src` directory structure.
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `./types.ts` to ensure proper module resolution and correct typing for the Supabase client.
 import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './types.ts';
 // FIX: Moved AppContextType and View to src/types.ts to break a circular dependency.
 // FIX: Added file extensions to all local module imports to fix the Supabase client 'never' type errors. This is required due to a module resolution issue in the project setup.

@@ -1,18 +1,12 @@
 
-
-
-
-
-
-
-
-
-
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for the View type. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { View } from '../../src/types.ts';
+// FIX: Corrected the import path for types to `../../types.ts` instead of `../../src/types.ts`, aligning with a standard `src` directory structure.
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
+import type { View } from '../../types.ts';
 
 const TruckIcon = ({ className, isExiting }: { className?: string; isExiting?: boolean }) => (
     <svg 

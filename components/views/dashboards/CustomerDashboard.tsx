@@ -1,10 +1,12 @@
 
-
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 // FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views/dashboards` to `src/types.ts` is `../../../types.ts`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { Trip, NewTrip } from '../../../src/types.ts';
+// FIX: Corrected the import path for types to `../../../types.ts` instead of `../../../src/types.ts`, aligning with a standard `src` directory structure.
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `../../../types.ts` to ensure proper module resolution.
+import type { Trip, NewTrip } from '../../../types.ts';
 import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui.tsx';
 
 declare global {

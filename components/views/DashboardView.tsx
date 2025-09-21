@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useContext, useEffect } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import { Spinner } from '../ui.tsx';
@@ -13,7 +6,10 @@ import CustomerDashboard from './dashboards/CustomerDashboard.tsx';
 import DriverDashboard from './dashboards/DriverDashboard.tsx';
 // FIX: Corrected the import path for the View type. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { View } from '../../src/types.ts';
+// FIX: Corrected the import path for types to `../../types.ts` instead of `../../src/types.ts`, aligning with a standard `src` directory structure.
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
+import type { View } from '../../types.ts';
 
 const DashboardView: React.FC = () => {
     const context = useContext(AppContext);

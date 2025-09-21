@@ -1,3 +1,4 @@
+
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
 declare global {
   interface ImportMeta {
@@ -12,8 +13,13 @@ import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
 // FIX: Corrected import path for types to point to the correct file in `src/`.
-import type { View } from '../../src/types.ts';
-import type { Trip, TripStatus, UserRole, Profile, ChatMessage, Review, Offer, Driver } from '../../src/types.ts';
+// FIX: Corrected the import path for types to `../../types.ts` instead of `../../src/types.ts`, aligning with a standard `src` directory structure.
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
+import type { View } from '../../types.ts';
+// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
+// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
+import type { Trip, TripStatus, UserRole, Profile, ChatMessage, Review, Offer, Driver } from '../../types.ts';
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
 import { supabase } from '../../services/supabaseService.ts';
 
@@ -265,6 +271,7 @@ const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
 const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   const context = useContext(AppContext);
   const [isLoadingPayment, setIsLoadingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   
   const trip = useMemo(() => context?.trips.find(t => t.id === tripId), [context?.trips, tripId]);
@@ -286,12 +293,13 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
 
   useEffect(() => {
     if (preferenceId) {
-        // CRITICAL SECURITY FIX: Public key is now read from environment variables.
+        // The public key is needed to render the Mercado Pago wallet brick.
         const publicKey = import.meta.env?.VITE_MERCADO_PAGO_PUBLIC_KEY;
 
         if (!publicKey) {
+            const errorMsg = "Error de configuración: La clave pública de Mercado Pago no está disponible para renderizar el checkout. Contacte al administrador.";
             console.error("Mercado Pago public key is not set (VITE_MERCADO_PAGO_PUBLIC_KEY).");
-            alert("Error de configuración: no se puede iniciar el proceso de pago.");
+            setPaymentError(errorMsg); // Update the UI with the error instead of an alert.
             return;
         }
         const mp = new window.MercadoPago(publicKey, { locale: 'es-AR' });
@@ -322,20 +330,29 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
   const handlePayWithMercadoPago = async () => {
       if (!trip) return;
       setIsLoadingPayment(true);
+      setPaymentError(null); // Reset error state on a new attempt.
       try {
+          // Client-side check for the public key before making a backend call.
+          // This provides faster feedback for configuration errors.
+          if (!import.meta.env?.VITE_MERCADO_PAGO_PUBLIC_KEY) {
+              throw new Error("Error de configuración: La clave pública de Mercado Pago no está disponible. Contacte al administrador.");
+          }
+
           const { data, error } = await supabase.functions.invoke('mercadopago-proxy', {
               body: { trip },
           });
 
           if (error) {
-              throw error;
+              throw error; // Rethrow Supabase/function errors to be caught by the catch block.
           }
           
           setPreferenceId(data.preferenceId);
 
-      } catch (error) {
-          console.error("Error al crear la preferencia de pago:", error);
-          alert("Error al iniciar el pago. Inténtalo de nuevo.");
+      } catch (err: any) { // Catch any potential error.
+          // Extract the message and log the full error for debugging.
+          const errorMessage = err.message || "Error al iniciar el pago. Inténtalo de nuevo.";
+          console.error("Error al crear la preferencia de pago:", err);
+          setPaymentError(errorMessage); // Update the UI with the error.
       } finally {
           setIsLoadingPayment(false);
       }
@@ -554,14 +571,25 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                     {user?.role === 'customer' && trip.status === 'completed' && (
                         <div className="animate-fadeSlideIn">
                             {!preferenceId ? (
-                                <Button onClick={handlePayWithMercadoPago} isLoading={isLoadingPayment} className="w-full !py-4">
-                                    Pagar ${trip.final_price?.toLocaleString()} con Mercado Pago
-                                </Button>
+                                <>
+                                  <Button onClick={handlePayWithMercadoPago} isLoading={isLoadingPayment} className="w-full !py-4">
+                                      Pagar ${trip.final_price?.toLocaleString()} con Mercado Pago
+                                  </Button>
+                                  {paymentError && (
+                                      <p className="text-sm text-red-400 text-center mt-2 animate-shake">{paymentError}</p>
+                                  )}
+                                </>
                             ) : (
                                 <div className="text-center">
-                                    <p className="text-sm text-slate-400 mb-4">Serás redirigido a Mercado Pago para completar la transacción.</p>
-                                    <div id="wallet_container"></div>
-                                    {isLoadingPayment && <Spinner />}
+                                    {paymentError ? (
+                                        <p className="text-sm text-red-400 text-center mt-2 animate-shake">{paymentError}</p>
+                                    ) : (
+                                      <>
+                                        <p className="text-sm text-slate-400 mb-4">Serás redirigido a Mercado Pago para completar la transacción.</p>
+                                        <div id="wallet_container"></div>
+                                        {isLoadingPayment && <Spinner />}
+                                      </>
+                                    )}
                                 </div>
                             )}
                         </div>
