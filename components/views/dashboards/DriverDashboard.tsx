@@ -36,12 +36,6 @@ const getCityFromTrip = (trip: Trip): string | null => {
 
 // --- Reusable Components ---
 
-const SectionHeader: React.FC<{ children: React.ReactNode, className?: string }> = ({ children, className }) => (
-    <div className={`flex justify-between items-center mb-4 ${className}`}>
-        <h3 className="text-2xl font-bold text-slate-100 border-b-2 border-slate-800/70 pb-2 flex-grow">{children}</h3>
-    </div>
-);
-
 const LocationPrompt: React.FC = () => {
     const context = useContext(AppContext);
     const [isVisible, setIsVisible] = React.useState(true);
@@ -74,7 +68,7 @@ const LocationPrompt: React.FC = () => {
     );
 };
 
-const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean }> = ({ trip, isAvailable = false }) => {
+const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onOfferMade?: () => void; }> = ({ trip, isAvailable = false, onOfferMade }) => {
     const context = useContext(AppContext);
     const customer = useMemo(() => context?.users.find(u => u.id === trip.customer_id), [context?.users, trip.customer_id]);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -97,6 +91,7 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean }> = ({ trip, isAva
         await context.placeOffer(trip.id, Number(offerPrice), offerNotes);
         setIsLoading(false);
         setIsMakingOffer(false); // Close form on success
+        onOfferMade?.(); // Notify parent to refresh list
     };
 
     return (
@@ -206,37 +201,55 @@ const FilterSidebar: React.FC<{
 // --- Main Driver Dashboard Component ---
 const DriverDashboard: React.FC = () => {
     const context = useContext(AppContext);
+    const [activeTab, setActiveTab] = useState<'available' | 'offers' | 'active'>('available');
     const [activeFilters, setActiveFilters] = useState<{ cities: Set<string> }>({ cities: new Set() });
     
+    // FIX: State for trips fetched from the serverless function to bypass RLS.
+    const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
+    const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
+
     if (!context || !context.user) {
         return <div className="p-8 text-center"><Spinner /></div>;
     }
     const user = context.user as Driver;
+    
+    // FIX: Fetch available trips from an edge function to bypass RLS.
+    const fetchAvailableTrips = useCallback(async () => {
+        if (!user) return;
+        setIsLoadingAvailable(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('get-available-trips', {
+                body: { driverId: user.id },
+            });
+            if (error) throw error;
+            setRawAvailableTrips(data || []);
+        } catch (error) {
+            console.error("Error fetching available trips:", error);
+            setRawAvailableTrips([]); // Set to empty on error to prevent crashes
+        } finally {
+            setIsLoadingAvailable(false);
+        }
+    }, [user]);
 
+    useEffect(() => {
+        // Fetch trips when the component mounts or the user changes.
+        fetchAvailableTrips();
+    }, [fetchAvailableTrips]);
+    
+    // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
-        if (!context.trips || !user || !context.offers) return [];
-
-        const prefs = user.filter_preferences;
+        if (!rawAvailableTrips || !user || !context.offers) return [];
         
         const myOfferedTripIds = new Set(
             context.offers.filter(o => o.driver_id === user.id).map(o => o.trip_id)
         );
 
-        return context.trips.filter(trip => {
-            if (trip.status !== 'requested') return false;
+        return rawAvailableTrips.filter(trip => {
             if (trip.customer_id === user.id) return false;
             if (myOfferedTripIds.has(trip.id)) return false;
-
-            if (prefs?.max_weight_kg && trip.estimated_weight_kg > prefs.max_weight_kg) {
-                return false;
-            }
-            if (prefs?.max_volume_m3 && trip.estimated_volume_m3 > prefs.max_volume_m3) {
-                return false;
-            }
-            
             return true;
         });
-    }, [context.trips, user, context.offers]);
+    }, [rawAvailableTrips, user, context.offers]);
     
     // --- Filtering Logic ---
     const availableCities = useMemo(() => {
@@ -273,7 +286,7 @@ const DriverDashboard: React.FC = () => {
     const myPendingOffers = useMemo(() => {
         if (!context || !user) return [];
         return context.offers.filter(offer => offer.driver_id === user.id && offer.status === 'pending');
-    }, [context, user]);
+    }, [context.offers, user]);
 
     // --- Active Trips Logic ---
     const myActiveTrips = useMemo(() => {
@@ -282,7 +295,33 @@ const DriverDashboard: React.FC = () => {
             trip.driver_id === user.id && 
             ['accepted', 'in_transit', 'completed'].includes(trip.status)
         );
-    }, [context, user]);
+    }, [context.trips, user]);
+
+    const TabButton: React.FC<{
+      tabId: 'available' | 'offers' | 'active';
+      count: number;
+      children: React.ReactNode;
+    }> = ({ tabId, count, children }) => (
+      <button
+        onClick={() => setActiveTab(tabId)}
+        className={`flex items-center gap-2 py-3 px-2 sm:px-4 font-semibold transition-colors duration-200 border-b-2 text-sm sm:text-base ${
+          activeTab === tabId
+            ? 'text-amber-400 border-amber-400'
+            : 'text-slate-400 border-transparent hover:text-white'
+        }`}
+      >
+        {children}
+        <span
+          className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+            activeTab === tabId
+              ? 'bg-amber-400/20 text-amber-300'
+              : 'bg-slate-700 text-slate-300'
+          }`}
+        >
+          {count}
+        </span>
+      </button>
+    );
     
     return (
         <div className="container mx-auto p-4 md:p-8">
@@ -291,85 +330,100 @@ const DriverDashboard: React.FC = () => {
                 
                 {/* Left Sidebar for Filters */}
                 <div className="lg:col-span-1">
-                     <FilterSidebar
-                        cities={availableCities}
-                        activeFilters={activeFilters}
-                        onFilterChange={handleFilterChange}
-                        onClearFilters={clearFilters}
-                    />
+                     {activeTab === 'available' && (
+                        <FilterSidebar
+                            cities={availableCities}
+                            activeFilters={activeFilters}
+                            onFilterChange={handleFilterChange}
+                            onClearFilters={clearFilters}
+                        />
+                     )}
                 </div>
                 
                 {/* Main Content Area */}
-                <div className="lg:col-span-3 space-y-10">
-                    {/* Active Trips Section */}
-                     <div className="space-y-6">
-                        <SectionHeader>Mis Viajes Activos</SectionHeader>
-                        {myActiveTrips.length > 0 ? (
-                             <div className="space-y-4">
-                                {myActiveTrips.map((trip, i) => (
-                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                        <TripCard trip={trip} />
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-slate-400 text-center pt-4">No tienes viajes en curso.</p>
-                        )}
-                    </div>
-                     {/* My Pending Offers Section */}
-                    <div className="space-y-6">
-                        <SectionHeader>Mis Ofertas Pendientes</SectionHeader>
-                        {myPendingOffers.length > 0 ? (
-                            myPendingOffers.map((offer, i) => {
-                                const trip = context?.trips.find(t => t.id === offer.trip_id);
-                                if (!trip) return null;
-                                return (
-                                    <div key={offer.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                        <Card className="bg-slate-900/40">
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-100">{trip.cargo_details}</h4>
-                                                    <p className="text-sm text-slate-400">{trip.origin} &rarr; {trip.destination}</p>
-                                                </div>
-                                                <p className="text-lg font-bold text-amber-400 whitespace-nowrap">${offer.price?.toLocaleString()}</p>
-                                            </div>
-                                            <div className="border-t border-slate-800 my-3"></div>
-                                            <div className="flex justify-between items-center">
-                                                <p className="text-sm text-slate-400">Oferta enviada. Esperando respuesta del cliente.</p>
-                                                <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="ghost">Ver Viaje</Button>
-                                            </div>
-                                        </Card>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <p className="text-slate-400 text-center pt-4">No tienes ofertas pendientes.</p>
-                        )}
+                <div className="lg:col-span-3">
+                    {/* Tab Navigation */}
+                    <div className="flex border-b border-slate-800 mb-6">
+                        <TabButton tabId="available" count={filteredTrips.length}>
+                            Nuevas Solicitudes
+                        </TabButton>
+                        <TabButton tabId="offers" count={myPendingOffers.length}>
+                            Mis Ofertas
+                        </TabButton>
+                        <TabButton tabId="active" count={myActiveTrips.length}>
+                            Viajes Activos
+                        </TabButton>
                     </div>
 
-                    {/* Available Trips Section */}
-                    <div className="space-y-6">
-                        <SectionHeader>Nuevas Solicitudes de Flete</SectionHeader>
-                        {context.isDataLoading ? (
-                            <div className="space-y-4">
-                                <SkeletonCard />
-                                <SkeletonCard style={{ animationDelay: '0.1s' }} />
-                            </div>
-                        ) : filteredTrips.length > 0 ? (
-                            <div className="space-y-4">
-                                {filteredTrips.map((trip, i) => (
-                                   <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                     <TripCard trip={trip} isAvailable />
-                                   </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-slate-400 text-center pt-4">
-                                {availableTrips.length > 0 && activeFilters.cities.size > 0 
-                                    ? "No hay viajes que coincidan con tus filtros." 
-                                    : "No hay nuevas solicitudes de flete en este momento."
-                                }
-                            </p>
+                    {/* Tab Panels */}
+                    <div className="space-y-4">
+                        {activeTab === 'available' && (
+                            <>
+                                {isLoadingAvailable ? (
+                                    <>
+                                        <SkeletonCard />
+                                        <SkeletonCard style={{ animationDelay: '0.1s' }} />
+                                    </>
+                                ) : filteredTrips.length > 0 ? (
+                                    filteredTrips.map((trip, i) => (
+                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                        <TripCard trip={trip} isAvailable onOfferMade={fetchAvailableTrips} />
+                                    </div>
+                                    ))
+                                ) : (
+                                    <p className="text-slate-400 text-center pt-8">
+                                        {availableTrips.length > 0 && activeFilters.cities.size > 0 
+                                            ? "No hay viajes que coincidan con tus filtros." 
+                                            : "No hay nuevas solicitudes de flete en este momento."
+                                        }
+                                    </p>
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'offers' && (
+                           <>
+                                {myPendingOffers.length > 0 ? (
+                                    myPendingOffers.map((offer, i) => {
+                                        const trip = context?.trips.find(t => t.id === offer.trip_id);
+                                        if (!trip) return null;
+                                        return (
+                                            <div key={offer.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                                <Card className="bg-slate-900/40">
+                                                    <div className="flex justify-between items-start gap-4">
+                                                        <div>
+                                                            <h4 className="font-bold text-slate-100">{trip.cargo_details}</h4>
+                                                            <p className="text-sm text-slate-400">{trip.origin} &rarr; {trip.destination}</p>
+                                                        </div>
+                                                        <p className="text-lg font-bold text-amber-400 whitespace-nowrap">${offer.price?.toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="border-t border-slate-800 my-3"></div>
+                                                    <div className="flex justify-between items-center">
+                                                        <p className="text-sm text-slate-400">Oferta enviada. Esperando respuesta.</p>
+                                                        <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="ghost">Ver Viaje</Button>
+                                                    </div>
+                                                </Card>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <p className="text-slate-400 text-center pt-8">No tienes ofertas pendientes.</p>
+                                )}
+                            </>
+                        )}
+                        
+                        {activeTab === 'active' && (
+                           <>
+                                {myActiveTrips.length > 0 ? (
+                                    myActiveTrips.map((trip, i) => (
+                                        <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                            <TripCard trip={trip} />
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-slate-400 text-center pt-8">No tienes viajes en curso.</p>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
