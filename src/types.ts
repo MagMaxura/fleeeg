@@ -102,8 +102,10 @@ export type Database = {
           } | null;
         };
         Insert: {
-            id: string;
-            email: string;
+            // FIX: Made id and email optional as they are handled by a database trigger
+            // upon user creation in `auth.users`, not provided by the client.
+            id?: string;
+            email?: string;
             full_name: string;
             dni: string;
             phone: string;

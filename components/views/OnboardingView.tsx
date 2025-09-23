@@ -1,12 +1,7 @@
 
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
-// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
-// FIX: Corrected import path for types to point to the correct file in `src/`.
-// FIX: Corrected the import path for types to `../../types.ts` instead of `../../src/types.ts`, aligning with a standard `src` directory structure.
-// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
-import type { UserRole, Profile, VehicleType } from '../../types.ts';
+import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
 // FIX: Replaced failing vite/client reference with a local declaration for import.meta.env to resolve type errors.
@@ -188,7 +183,6 @@ const OnboardingView: React.FC = () => {
           photo_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(baseUser.full_name)}&background=0f172a&color=fff&size=200`,
           vehicle_photo_url: null,
           payment_info: data.payment_info,
-          // FIX: Add missing properties to conform to Profile type
           vehicle_photo_path: null,
           filter_preferences: null,
         }
@@ -203,12 +197,10 @@ const OnboardingView: React.FC = () => {
           photo_url: null,
           vehicle_photo_url: null,
           payment_info: null,
-          // FIX: Add missing properties to conform to Profile type
           vehicle_photo_path: null,
           filter_preferences: null,
         };
 
-    // FIX: Removed unnecessary `as Omit<Profile, 'id'>` cast. With types loading correctly, TypeScript can infer this.
     const authError = await context.registerUser(userToRegister, data.password as string, photoFile, vehiclePhotoFile);
     if (authError) {
         setError(authError.message || "Ocurrió un error durante el registro.");

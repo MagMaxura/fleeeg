@@ -1,15 +1,5 @@
 
 import React, { Dispatch, SetStateAction } from 'react';
-// FIX: Moved AppContextType here to break a circular dependency with src/types.ts.
-// This allows src/types.ts to remain dependency-free, which is critical for
-// ensuring the Supabase client is correctly typed.
-// FIX: Corrected the import path for types. Assuming a standard project structure where all source files are in `src`, the path should be relative to the current directory, not include `src/`.
-// FIX: Corrected import path for types to point to the correct file in `src/`.
-// FIX: Corrected import path for types to resolve module resolution issues.
-// FIX: Corrected import path to point to './src/types.ts' to resolve module not found error.
-// FIX: Corrected the import path for types to `types.ts` instead of `src/types.ts`, aligning with a standard `src` directory structure.
-// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-// FIX: Corrected the import path for types to `./types.ts` to ensure proper module resolution.
 import type { 
     Profile, 
     Trip, 
@@ -18,7 +8,7 @@ import type {
     View, 
     NewTrip, 
     SimpleAuthError 
-} from './types.ts';
+} from './src/types.ts';
 
 // The shape of the global application context.
 export interface AppContextType {

@@ -2,12 +2,7 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import { Card, Spinner, StarRating, Icon, Button } from '../ui.tsx';
-// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/components/views` to `src/types.ts` is `../../types.ts`.
-// FIX: Corrected import path for types to point to the correct file in `src/`.
-// FIX: Corrected the import path for types to `../../types.ts` instead of `../../src/types.ts`, aligning with a standard `src` directory structure.
-// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-// FIX: Corrected the import path for types to `../../types.ts` to ensure proper module resolution.
-import type { Driver, Review } from '../../types.ts';
+import type { Driver, Review } from '../../src/types.ts';
 
 const DriverProfileView: React.FC = () => {
   const context = useContext(AppContext);

@@ -1,11 +1,6 @@
 
 import { supabase } from './supabaseService.ts';
-// FIX: Corrected the import path for types. Assuming a standard `src` directory structure, the path from `src/services` to `src/types.ts` is `../types.ts`.
-// FIX: Corrected import path for types to point to the correct file in `src/`.
-// FIX: Corrected the import path for types to `../types.ts` instead of `../src/types.ts`, aligning with a standard `src` directory structure.
-// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-// FIX: Corrected the import path for types to `../types.ts` to ensure proper module resolution.
-import type { VehicleType } from '../types.ts';
+import type { VehicleType } from '../src/types.ts';
 
 export interface TripEstimate {
   distanceKm: number;
@@ -38,8 +33,7 @@ export const getDriverEta = async (
 
     // The data from the function is { etaMinutes: number }
     return data.etaMinutes ?? null;
-  } catch (err) {
-    // FIX: Explicitly typed the error variable in the catch block to resolve a potential linting issue.
+  } catch (err: any) {
     console.error('Error invoking Supabase function for driver ETA:', err);
     return null;
   }

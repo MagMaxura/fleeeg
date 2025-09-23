@@ -18,10 +18,16 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // --- Seguridad: Obtener el Access Token de Mercado Pago de forma segura ---
+    // --- Seguridad: Obtener credenciales de Mercado Pago de forma segura ---
     const MERCADO_PAGO_TOKEN = Deno.env.get('MERCADO_PAGO_TOKEN');
     if (!MERCADO_PAGO_TOKEN) {
       throw new Error('La variable de entorno MERCADO_PAGO_TOKEN no está configurada.');
+    }
+    // The public key is needed by the frontend to render the payment brick.
+    // We retrieve it here from the function's secrets and send it back securely.
+    const MERCADO_PAGO_PUBLIC_KEY = Deno.env.get('VITE_MERCADO_PAGO_PUBLIC_KEY');
+    if (!MERCADO_PAGO_PUBLIC_KEY) {
+      throw new Error('Error de configuración: La clave pública de Mercado Pago (VITE_MERCADO_PAGO_PUBLIC_KEY) no está configurada en los secretos de la función.');
     }
     
     // --- Inicializar el cliente de Supabase Admin ---
@@ -142,8 +148,11 @@ Deno.serve(async (req: Request) => {
 
     const data = await response.json();
 
-    // Devuelve el ID de la preferencia al frontend.
-    return new Response(JSON.stringify({ preferenceId: data.id }), {
+    // Devuelve el ID de la preferencia Y la clave pública al frontend.
+    return new Response(JSON.stringify({ 
+        preferenceId: data.id,
+        publicKey: MERCADO_PAGO_PUBLIC_KEY,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
