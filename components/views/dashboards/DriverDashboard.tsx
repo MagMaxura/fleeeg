@@ -79,25 +79,42 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => v
             setError('Debes ingresar un precio para la oferta.');
             return;
         }
-        if (Number(offerPrice) <= 0) {
+        const price = Number(offerPrice);
+        if (isNaN(price) || price <= 0) {
             setError('El precio ofertado debe ser un número positivo.');
             return;
         }
         setError('');
         setIsLoading(true);
-        await context.placeOffer(trip.id, Number(offerPrice), offerNotes);
-        setIsLoading(false);
-        setIsMakingOffer(false);
-        onAction?.();
+        const result = await context.placeOffer(trip.id, price, offerNotes);
+        if (result) {
+            setError(result.message);
+            setIsLoading(false);
+        } else {
+            // Success: the component will be removed via onAction, so no need to reset state.
+            onAction?.();
+        }
     };
     
     const handleReject = async () => {
         if (!context) return;
         setIsLoading(true);
-        await context.rejectTrip(trip.id);
-        // We don't need to set isLoading to false, as the component will disappear
-        onAction?.();
+        setError('');
+        const result = await context.rejectTrip(trip.id);
+        if (result) {
+            setError(result.message);
+            setIsLoading(false);
+        } else {
+            // Success: the component will be removed via onAction.
+            onAction?.();
+        }
     };
+
+    const toggleOfferForm = (show: boolean) => {
+        setError(''); // Clear errors when toggling form visibility
+        setIsMakingOffer(show);
+    };
+
 
     return (
         <Card className="transition-all hover:border-slate-700/80">
@@ -136,26 +153,29 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => v
                     />
                     {error && <p className="text-xs text-red-400 text-center animate-shake">{error}</p>}
                     <div className="flex gap-2 justify-end">
-                        <Button onClick={() => setIsMakingOffer(false)} variant="secondary" size="sm">Cancelar</Button>
+                        <Button onClick={() => toggleOfferForm(false)} variant="secondary" size="sm">Cancelar</Button>
                         <Button onClick={handleMakeOffer} isLoading={isLoading} size="sm">Enviar Oferta</Button>
                     </div>
                 </div>
             ) : (
-                <div className="flex justify-between items-center">
-                    <div className="flex gap-4 text-sm">
-                        <span className="flex items-center gap-1.5 text-slate-300" title="Distancia"><Icon type="distance" className="w-4 h-4 text-slate-400"/> {trip.distance_km?.toFixed(1)} km</span>
-                        <span className="flex items-center gap-1.5 text-slate-300" title="Peso"><Icon type="weight" className="w-4 h-4 text-slate-400"/> {trip.estimated_weight_kg} kg</span>
-                        <span className="flex items-center gap-1.5 text-slate-300" title="Volumen"><Icon type="volume" className="w-4 h-4 text-slate-400"/> {trip.estimated_volume_m3} m³</span>
-                    </div>
-                    {isAvailable ? (
-                        <div className="flex items-center gap-1">
-                            <Button onClick={handleReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
-                            <Button onClick={() => setIsMakingOffer(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
+                <>
+                    <div className="flex justify-between items-center">
+                        <div className="flex gap-4 text-sm">
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Distancia"><Icon type="distance" className="w-4 h-4 text-slate-400"/> {trip.distance_km?.toFixed(1)} km</span>
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Peso"><Icon type="weight" className="w-4 h-4 text-slate-400"/> {trip.estimated_weight_kg} kg</span>
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Volumen"><Icon type="volume" className="w-4 h-4 text-slate-400"/> {trip.estimated_volume_m3} m³</span>
                         </div>
-                    ) : (
-                        <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Gestionar</Button>
-                    )}
-                </div>
+                        {isAvailable ? (
+                            <div className="flex items-center gap-1">
+                                <Button onClick={handleReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
+                                <Button onClick={() => toggleOfferForm(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
+                            </div>
+                        ) : (
+                            <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Gestionar</Button>
+                        )}
+                    </div>
+                    {error && <p className="text-xs text-red-400 text-right mt-2 animate-shake">{error}</p>}
+                </>
             )}
         </Card>
     );

@@ -11,7 +11,8 @@ import { supabase } from './services/supabaseService.ts';
 import { getDriverEta } from './services/geminiService.ts';
 
 // UI Components
-import { Spinner } from './components/ui.tsx';
+// FIX: Added Button import for use in the Header component.
+import { Button, Spinner } from './components/ui.tsx';
 
 // View Components
 import HomeView from './components/views/HomeView.tsx';
@@ -456,8 +457,9 @@ const App: React.FC = () => {
         trip_id: tripId,
     });
     if (error) {
-        console.error(`Error rejecting trip: ${error.message}`, error);
-        return { name: 'DBError', message: error.message };
+        console.error('Error object when rejecting trip:', error);
+        const errorMessage = error.message || 'Ocurrió un error al rechazar el viaje. Por favor, inténtalo de nuevo.';
+        return { name: 'DBError', message: errorMessage };
     }
     return null;
   }, []);
@@ -679,91 +681,68 @@ const App: React.FC = () => {
       return () => window.removeEventListener('scroll', handleScroll);
     }, []);
     
-    const showHeader = !['home', 'confirmEmail'].includes(view) && !isLoading;
-    if (!showHeader) return null;
+    const showHeader = !['home', 'confirmEmail'].includes(view);
+    
+    if (!showHeader) {
+        return null;
+    }
 
     return (
-    <header className={`p-4 sticky top-0 z-40 transition-all duration-300 ${scrolled ? 'bg-slate-950/80 backdrop-blur-lg border-b border-slate-800/50' : 'bg-transparent border-b border-transparent'}`}>
-      <nav className="container mx-auto flex justify-between items-center">
-        <div 
-          className="text-2xl font-bold cursor-pointer fletapp-text-gradient bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-orange-500"
-          onClick={() => setView(user ? 'dashboard' : 'landing')}>
-            Fletapp
-        </div>
-        <div className="flex items-center gap-2">
-          {user && (
-            <>
-              <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'dashboard' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Panel</button>
-              <button onClick={() => setView('rankings')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'rankings' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Ranking</button>
-              <button onClick={() => setView('profile')} className={`px-4 py-2 rounded-md transition-colors font-medium ${view === 'profile' ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}>Mi Perfil</button>
-              <button onClick={logout} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-rose-900/50">Salir</button>
-            </>
-          )}
-          {!user && ['landing', 'login', 'onboarding'].includes(view) && (
-            <>
-              <button onClick={() => setView('login')} className="px-4 py-2 rounded-md transition-colors font-medium text-slate-300 hover:text-white hover:bg-slate-800/50">Ingresar</button>
-              <button onClick={() => setView('onboarding')} className="px-4 py-2 rounded-md fletapp-gold-gradient text-slate-900 font-bold">Crear Cuenta</button>
-            </>
-          )}
-        </div>
-      </nav>
-    </header>
+        <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || view !== 'landing' ? 'bg-slate-950/80 backdrop-blur-lg shadow-lg' : 'bg-transparent'}`}>
+            <div className="container mx-auto p-4 flex justify-between items-center">
+                <div className="text-2xl font-bold fletapp-text-gradient bg-clip-text text-transparent cursor-pointer" onClick={() => setView(user ? 'dashboard' : 'landing')}>
+                    Fletapp
+                </div>
+                <nav className="flex items-center gap-2 sm:gap-4">
+                    {user ? (
+                        <>
+                            <span className="text-slate-300 hidden sm:block">Hola, {user.full_name.split(' ')[0]}</span>
+                            <Button onClick={() => setView('rankings')} variant="ghost" size="sm">Ranking</Button>
+                            <Button onClick={() => setView('profile')} variant="ghost" size="sm">Mi Perfil</Button>
+                            <Button onClick={logout} variant="secondary" size="sm" isLoading={isLoading}>Salir</Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setView('login')} variant="ghost" size="sm">Ingresar</Button>
+                            <Button onClick={() => setView('onboarding')} variant="primary" size="sm">Registrarse</Button>
+                        </>
+                    )}
+                </nav>
+            </div>
+        </header>
     );
   };
-  
-  const Footer = () => {
-    const showFooter = !['home', 'confirmEmail'].includes(view) && !isLoading;
-    if (!showFooter) return null;
-    return (
-      <footer className="container mx-auto text-center p-4 mt-8 border-t border-slate-800/50">
-          <p className="text-slate-500 text-sm">&copy; {new Date().getFullYear()} Fletapp. Todos los derechos reservados.</p>
-      </footer>
-    )
-  }
 
   const renderView = () => {
-    // If we're loading the session, or the user exists but their profile hasn't loaded yet
-    if (isLoading || isDataLoading) {
+    if (isDataLoading) {
       return (
-        <div className="flex justify-center items-center h-64">
+        <div className="flex justify-center items-center min-h-screen">
           <Spinner />
         </div>
       );
     }
-    
-    // User state determines the view
-    if (!user) {
-        switch (view) {
-            case 'landing': return <LandingView />;
-            case 'onboarding': return <OnboardingView />;
-            case 'login': return <LoginView />;
-            case 'confirmEmail': return <ConfirmEmailView email={emailForConfirmation} />;
-            case 'home':
-            default: return <HomeView />;
-        }
-    }
-    
-    // If user is logged in
     switch (view) {
-      case 'dashboard': return <DashboardView />;
-      case 'rankings': return <RankingsView />;
-      case 'tripStatus': return activeTripId ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;
-      case 'driverProfile': return activeDriverId ? <DriverProfileView /> : <RankingsView />;
-      case 'profile': return <ProfileView />;
-      default: return <DashboardView />;
+      case 'home': return <HomeView />;
+      case 'landing': return <LandingView />;
+      case 'onboarding': return <OnboardingView />;
+      case 'login': return <LoginView />;
+      case 'confirmEmail': return <ConfirmEmailView email={emailForConfirmation} />;
+      case 'dashboard': return user ? <DashboardView /> : <LoginView />;
+      case 'rankings': return user ? <RankingsView /> : <LoginView />;
+      case 'tripStatus': return user && activeTripId ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;
+      case 'driverProfile': return user && activeDriverId ? <DriverProfileView /> : <RankingsView />;
+      case 'profile': return user ? <ProfileView /> : <LoginView />;
+      default: return <HomeView />;
     }
   };
 
-  if (!appContextValue) return <div className="flex justify-center items-center h-screen"><Spinner /></div>
-
   return (
     <AppContext.Provider value={appContextValue}>
-      <div className="min-h-screen flex flex-col">
+      <div className="bg-slate-950 text-slate-100 min-h-screen font-sans fletapp-bg">
         <Header />
-        <main className="flex-grow container mx-auto w-full">
+        <main className={view === 'home' ? '' : 'pt-20 sm:pt-24 pb-12'}>
           {renderView()}
         </main>
-        <Footer />
       </div>
     </AppContext.Provider>
   );
