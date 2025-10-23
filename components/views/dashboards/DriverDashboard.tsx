@@ -225,6 +225,7 @@ const DriverDashboard: React.FC = () => {
     
     const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
     const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
+    const [rejectedTripIds, setRejectedTripIds] = useState<Set<number>>(new Set());
 
     if (!context || !context.user) {
         return <div className="p-8 text-center"><Spinner /></div>;
@@ -255,17 +256,22 @@ const DriverDashboard: React.FC = () => {
     const handleRejectTrip = useCallback(async (tripId: number) => {
         if (!context) return;
     
-        // Optimistic UI update: remove the trip from the list immediately.
-        setRawAvailableTrips(prevTrips => prevTrips ? prevTrips.filter(t => t.id !== tripId) : []);
+        // Optimistic UI update: add to the set of locally rejected IDs.
+        // The memoized 'availableTrips' will automatically filter this trip out.
+        setRejectedTripIds(prevIds => new Set(prevIds).add(tripId));
     
         const result = await context.rejectTrip(tripId);
     
-        // If an unexpected error occurred, revert the change by re-fetching the truth from the server.
+        // If an unexpected error occurred, revert the change by removing the ID from the set.
         if (result) {
             console.error('Error rejecting trip, reverting UI change.', result);
-            fetchAvailableTrips(); // Re-fetch to restore state
+            setRejectedTripIds(prevIds => {
+                const newIds = new Set(prevIds);
+                newIds.delete(tripId);
+                return newIds;
+            });
         }
-    }, [context, fetchAvailableTrips]);
+    }, [context]);
     
     // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
@@ -276,11 +282,15 @@ const DriverDashboard: React.FC = () => {
         );
 
         return rawAvailableTrips.filter(trip => {
+            // New filter condition: ignore trips rejected during this session.
+            if (rejectedTripIds.has(trip.id)) {
+                return false;
+            }
             if (trip.customer_id === user.id) return false;
             if (myOfferedTripIds.has(trip.id)) return false;
             return true;
         });
-    }, [rawAvailableTrips, user, context.offers]);
+    }, [rawAvailableTrips, user, context.offers, rejectedTripIds]);
     
     // --- Filtering Logic ---
     const availableCities = useMemo(() => {
