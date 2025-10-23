@@ -252,13 +252,20 @@ const App: React.FC = () => {
     setIsLoading(true);
     const { error } = await supabase.auth.signOut();
     
-    if (error && error.message !== 'Invalid Refresh Token: Refresh Token Not Found') {
+    // Lista de mensajes de error que no son críticos y pueden ignorarse de forma segura.
+    // Indican que el usuario ya estaba efectivamente desconectado.
+    const nonCriticalErrors = [
+        'Invalid Refresh Token: Refresh Token Not Found',
+        'Auth session missing!'
+    ];
+
+    if (error && !nonCriticalErrors.includes(error.message)) {
       console.error('Error logging out:', error);
       alert('Error al cerrar sesión.');
     }
 
-    // The onAuthStateChange listener will handle clearing the user state.
-    // We manually clear active IDs and redirect to the landing page.
+    // El listener onAuthStateChange se encargará de limpiar el estado del usuario.
+    // Limpiamos manualmente los IDs activos y redirigimos a la página de inicio.
     setActiveTripId(null);
     setActiveDriverId(null);
     setView('landing');
