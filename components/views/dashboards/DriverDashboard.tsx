@@ -225,12 +225,11 @@ const DriverDashboard: React.FC = () => {
     
     const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
     const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
-    const [rejectedTripIds, setRejectedTripIds] = useState<Set<number>>(new Set());
 
     if (!context || !context.user) {
         return <div className="p-8 text-center"><Spinner /></div>;
     }
-    const user = context.user as Driver;
+    const { user, sessionRejectedTripIds, addRejectedTripId } = context;
     
     const fetchAvailableTrips = useCallback(async () => {
         if (!user) return;
@@ -256,22 +255,18 @@ const DriverDashboard: React.FC = () => {
     const handleRejectTrip = useCallback(async (tripId: number) => {
         if (!context) return;
     
-        // Optimistic UI update: add to the set of locally rejected IDs.
-        // The memoized 'availableTrips' will automatically filter this trip out.
-        setRejectedTripIds(prevIds => new Set(prevIds).add(tripId));
+        // Optimistic UI update: add to the global set of rejected IDs for this session.
+        addRejectedTripId(tripId);
     
+        // In the background, persist this rejection to the database for future sessions.
         const result = await context.rejectTrip(tripId);
     
-        // If an unexpected error occurred, revert the change by removing the ID from the set.
         if (result) {
-            console.error('Error rejecting trip, reverting UI change.', result);
-            setRejectedTripIds(prevIds => {
-                const newIds = new Set(prevIds);
-                newIds.delete(tripId);
-                return newIds;
-            });
+            // The trip is already hidden for this session, so no UI reversal is needed.
+            // We just log the error for debugging.
+            console.error('Error persisting trip rejection in background:', result);
         }
-    }, [context]);
+    }, [context, addRejectedTripId]);
     
     // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
@@ -282,15 +277,15 @@ const DriverDashboard: React.FC = () => {
         );
 
         return rawAvailableTrips.filter(trip => {
-            // New filter condition: ignore trips rejected during this session.
-            if (rejectedTripIds.has(trip.id)) {
+            // Filter out trips rejected during this session using the global state from context.
+            if (sessionRejectedTripIds.has(trip.id)) {
                 return false;
             }
             if (trip.customer_id === user.id) return false;
             if (myOfferedTripIds.has(trip.id)) return false;
             return true;
         });
-    }, [rawAvailableTrips, user, context.offers, rejectedTripIds]);
+    }, [rawAvailableTrips, user, context.offers, sessionRejectedTripIds]);
     
     // --- Filtering Logic ---
     const availableCities = useMemo(() => {

@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>('checking');
+  const [sessionRejectedTripIds, setSessionRejectedTripIds] = useState<Set<number>>(new Set());
   
   const prevTripsRef = useRef<Trip[]>([]);
   const userRef = useRef(user); // Create a ref to hold the user state.
@@ -654,6 +655,10 @@ const App: React.FC = () => {
     setView('driverProfile');
   }, []);
 
+  const addRejectedTripId = useCallback((tripId: number) => {
+    setSessionRejectedTripIds(prev => new Set(prev).add(tripId));
+  }, []);
+
   const appContextValue: AppContextType | null = useMemo(() => ({
     user,
     users,
@@ -684,11 +689,13 @@ const App: React.FC = () => {
     userLocation,
     locationPermissionStatus,
     requestLocationPermission,
+    sessionRejectedTripIds,
+    addRejectedTripId,
   }), [
       user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser, 
       updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment, 
       viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout, 
-      activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission
+      activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId
   ]);
 
   const Header = () => {

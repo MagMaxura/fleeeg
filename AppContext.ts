@@ -41,6 +41,8 @@ export interface AppContextType {
   userLocation: GeolocationCoordinates | null;
   locationPermissionStatus: PermissionState | 'checking';
   requestLocationPermission: () => void;
+  sessionRejectedTripIds: Set<number>;
+  addRejectedTripId: (tripId: number) => void;
 }
 
 // Creating and exporting the context itself.
