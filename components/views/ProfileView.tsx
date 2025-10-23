@@ -1,9 +1,11 @@
 
 
+
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-import type { Profile, VehicleType } from '../../src/types.ts';
+// FIX: Removed .ts extension for consistent module resolution.
+import type { Profile, VehicleType } from '../../src/types';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
 declare global {

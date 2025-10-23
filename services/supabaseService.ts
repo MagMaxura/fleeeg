@@ -1,6 +1,8 @@
 
+
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '../src/types.ts';
+// FIX: Removed .ts extension for consistent module resolution.
+import type { Database } from '../src/types';
 
 
 // --- Supabase Client Initialization ---

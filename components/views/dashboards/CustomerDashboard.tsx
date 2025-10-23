@@ -52,11 +52,15 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         distance_km?: number,
         needs_loading_help?: boolean,
         needs_unloading_help?: boolean,
-        number_of_helpers?: number
+        number_of_helpers?: number,
+        estimated_load_time_min?: number,
+        estimated_unload_time_min?: number
     }>>({
         needs_loading_help: false,
         needs_unloading_help: false,
         number_of_helpers: 0,
+        estimated_load_time_min: 30,
+        estimated_unload_time_min: 30,
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -82,6 +86,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 ...tripToEdit,
                 estimated_weight_kg: tripToEdit.estimated_weight_kg ?? undefined,
                 estimated_volume_m3: tripToEdit.estimated_volume_m3 ?? undefined,
+                estimated_load_time_min: tripToEdit.estimated_load_time_min ?? undefined,
+                estimated_unload_time_min: tripToEdit.estimated_unload_time_min ?? undefined,
                 needs_loading_help: tripToEdit.needs_loading_help || false,
                 needs_unloading_help: tripToEdit.needs_unloading_help || false,
                 number_of_helpers: tripToEdit.number_of_helpers || 0,
@@ -99,6 +105,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 destination: '',
                 estimated_weight_kg: undefined,
                 estimated_volume_m3: undefined,
+                estimated_load_time_min: 30,
+                estimated_unload_time_min: 30,
                 price: undefined,
             });
             if (originRef.current) originRef.current.value = '';
@@ -175,22 +183,37 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const calculatePrice = useCallback(() => {
         const { 
-            distance_km, estimated_drive_time_min,
+            estimated_drive_time_min,
+            estimated_load_time_min,
+            estimated_unload_time_min,
             needs_loading_help, needs_unloading_help, number_of_helpers 
         } = tripData;
     
-        if (distance_km === undefined || estimated_drive_time_min === undefined || distance_km === null || estimated_drive_time_min === null) {
+        if (estimated_drive_time_min === undefined || estimated_drive_time_min === null) {
             setTripData(prev => ({ ...prev, price: undefined }));
             return;
         }
         
-        const basePrice = distance_km * 250 + estimated_drive_time_min * 100;
+        const loadTime = Number(estimated_load_time_min) || 0;
+        const unloadTime = Number(estimated_unload_time_min) || 0;
+        const totalTimeMin = estimated_drive_time_min + loadTime + unloadTime;
+
+        let timeBasedPrice = 0;
+        if (totalTimeMin > 0) {
+            timeBasedPrice = 30000; // Base price for the first hour
+            if (totalTimeMin > 60) {
+                const extraTimeMin = totalTimeMin - 60;
+                const extraHalfHours = Math.ceil(extraTimeMin / 30);
+                timeBasedPrice += extraHalfHours * 15000;
+            }
+        }
+
         const loadingCost = needs_loading_help ? 10000 : 0;
         const unloadingCost = needs_unloading_help ? 10000 : 0;
         const helpersCost = (number_of_helpers || 0) * 20000;
         
-        const totalPrice = basePrice + loadingCost + unloadingCost + helpersCost;
-        const finalPrice = Math.max(5000, Math.round(totalPrice / 500) * 500);
+        const totalPrice = timeBasedPrice + loadingCost + unloadingCost + helpersCost;
+        const finalPrice = Math.round(totalPrice / 500) * 500;
     
         setTripData(prev => ({ ...prev, price: finalPrice }));
     }, [tripData]);
@@ -198,8 +221,9 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     useEffect(() => {
         calculatePrice();
     }, [
-        tripData.distance_km, 
         tripData.estimated_drive_time_min, 
+        tripData.estimated_load_time_min,
+        tripData.estimated_unload_time_min,
         tripData.needs_loading_help, 
         tripData.needs_unloading_help, 
         tripData.number_of_helpers,
@@ -262,7 +286,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (!tripData.origin || !tripData.destination || !tripData.cargo_details || !tripData.estimated_weight_kg || !tripData.estimated_volume_m3) {
+        if (!tripData.origin || !tripData.destination || !tripData.cargo_details || !tripData.estimated_weight_kg || !tripData.estimated_volume_m3 || !tripData.estimated_load_time_min || !tripData.estimated_unload_time_min) {
             setError('Por favor, completa todos los campos.');
             return;
         }
@@ -277,6 +301,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             estimated_volume_m3: Number(tripData.estimated_volume_m3),
             distance_km: tripData.distance_km || null,
             estimated_drive_time_min: tripData.estimated_drive_time_min || null,
+            estimated_load_time_min: Number(tripData.estimated_load_time_min) || null,
+            estimated_unload_time_min: Number(tripData.estimated_unload_time_min) || null,
             price: tripData.price || null,
             needs_loading_help: tripData.needs_loading_help ?? false,
             needs_unloading_help: tripData.needs_unloading_help ?? false,
@@ -301,11 +327,22 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const getPriceBreakdown = () => {
         if (!tripData.price) return null;
-        const { distance_km = 0, estimated_drive_time_min = 0 } = tripData;
-        const basePrice = distance_km * 250 + estimated_drive_time_min * 100;
+        
+        const { estimated_drive_time_min = 0, estimated_load_time_min = 0, estimated_unload_time_min = 0 } = tripData;
+        const totalTimeMin = estimated_drive_time_min + Number(estimated_load_time_min) + Number(estimated_unload_time_min);
+        
+        let timeBasedPrice = 0;
+        if (totalTimeMin > 0) {
+            timeBasedPrice = 30000; // Base price for the first hour
+            if (totalTimeMin > 60) {
+                const extraTimeMin = totalTimeMin - 60;
+                const extraHalfHours = Math.ceil(extraTimeMin / 30);
+                timeBasedPrice += extraHalfHours * 15000;
+            }
+        }
         return (
             <>
-                <p>Base ({distance_km.toFixed(1)} km, {estimated_drive_time_min} min): ${Math.round(basePrice).toLocaleString()}</p>
+                <p>Costo Base por Tiempo ({totalTimeMin} min): ${timeBasedPrice.toLocaleString()}</p>
                 {tripData.needs_loading_help && <p>Ayuda en carga: +$10.000</p>}
                 {tripData.needs_unloading_help && <p>Ayuda en descarga: +$10.000</p>}
                 {(tripData.number_of_helpers || 0) > 0 && <p>Ayudantes ({tripData.number_of_helpers}): +${((tripData.number_of_helpers || 0) * 20000).toLocaleString()}</p>}
@@ -325,6 +362,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 <div className="grid grid-cols-2 gap-4">
                     <Input name="estimated_weight_kg" label="Peso (kg)" type="number" placeholder="Ej: 80" onChange={handleInputChange} value={tripData.estimated_weight_kg?.toString() || ''} required />
                     <Input name="estimated_volume_m3" label="Volumen (m³)" type="number" step="0.1" placeholder="Ej: 1.5" onChange={handleInputChange} value={tripData.estimated_volume_m3?.toString() || ''} required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <Input name="estimated_load_time_min" label="Tiempo de Carga (min)" type="number" placeholder="Ej: 30" onChange={handleInputChange} value={tripData.estimated_load_time_min?.toString() || ''} required />
+                    <Input name="estimated_unload_time_min" label="Tiempo de Descarga (min)" type="number" placeholder="Ej: 30" onChange={handleInputChange} value={tripData.estimated_unload_time_min?.toString() || ''} required />
                 </div>
                 
                 <div className="space-y-3 rounded-lg bg-slate-900/50 p-4 border border-slate-700/80 !mt-6">

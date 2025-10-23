@@ -1,10 +1,14 @@
 
 
+
+
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
 // Foundational types and context
-import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './src/types.ts';
+// FIX: Removed .ts extension for consistent module resolution.
+import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './src/types';
 import { AppContext } from './AppContext.ts';
 import type { AppContextType } from './AppContext.ts';
 import { supabase } from './services/supabaseService.ts';
@@ -335,8 +339,9 @@ const App: React.FC = () => {
     vehiclePhotoFile
   ) => {
     // Step 1: Sign up the user in Supabase Auth. This sends the confirmation email.
+    // FIX: Added a non-null assertion `!` because `newUser` of type `ProfileInsert` has an optional `email`, but the signUp function requires it. The form guarantees it exists.
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: newUser.email,
+      email: newUser.email!,
       password,
     });
     if (signUpError) return signUpError;
@@ -637,9 +642,28 @@ const App: React.FC = () => {
         const startTimeMs = new Date(trip.start_time).getTime();
         const finalDurationMin = Math.ceil((Date.now() - startTimeMs) / (1000 * 60));
         
+        // --- Recalculate Final Price Based on Actual Duration ---
+        let timeBasedPrice = 0;
+        if (finalDurationMin > 0) {
+            timeBasedPrice = 30000; // Base price for up to the first hour
+            if (finalDurationMin > 60) {
+                const extraTimeMin = finalDurationMin - 60;
+                const extraHalfHours = Math.ceil(extraTimeMin / 30);
+                timeBasedPrice += extraHalfHours * 15000;
+            }
+        }
+        const loadingCost = trip.needs_loading_help ? 10000 : 0;
+        const unloadingCost = trip.needs_unloading_help ? 10000 : 0;
+        const helpersCost = (trip.number_of_helpers || 0) * 20000;
+        
+        const totalPrice = timeBasedPrice + loadingCost + unloadingCost + helpersCost;
+        const recalculatedFinalPrice = Math.round(totalPrice / 500) * 500;
+        // --- End Recalculation ---
+
         const updatePayload: Partial<TripUpdate> = { 
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
+            final_price: recalculatedFinalPrice,
         };
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 

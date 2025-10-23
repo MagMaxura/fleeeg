@@ -1,4 +1,6 @@
+
 import React, { Dispatch, SetStateAction } from 'react';
+// FIX: Removed .ts extension for consistent module resolution.
 import type { 
     Profile, 
     Trip, 
@@ -9,7 +11,7 @@ import type {
     SimpleAuthError,
     TripUpdate,
     ProfileInsert
-} from './src/types.ts';
+} from './src/types';
 
 // The shape of the global application context.
 export interface AppContextType {
@@ -22,7 +24,8 @@ export interface AppContextType {
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   loginUser: (email: string, password: string) => Promise<SimpleAuthError | null>;
-  registerUser: (newUser: Omit<Profile, 'id'>, password: string, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
+  // FIX: Corrected the type of `newUser` from the `Row` type (`Omit<Profile, 'id'>`) to the semantically correct `Insert` type. This is the key fix to resolve the client-wide type inference failure.
+  registerUser: (newUser: ProfileInsert, password: string, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   updateUserProfile: (updatedProfileData: Partial<Profile>, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   logout: () => Promise<void>;
   createTrip: (tripData: NewTrip) => Promise<SimpleAuthError | null>;

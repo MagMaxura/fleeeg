@@ -1,10 +1,12 @@
 
 
+
 import React, { useContext } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import { Card, Icon, Button } from '../ui.tsx';
 // FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
-import type { View } from '../../src/types.ts';
+// FIX: Removed .ts extension for consistent module resolution.
+import type { View } from '../../src/types';
 
 const ConfirmEmailView: React.FC<{ email: string | null }> = ({ email }) => {
     const context = useContext(AppContext);
