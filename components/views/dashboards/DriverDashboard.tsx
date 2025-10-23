@@ -255,6 +255,12 @@ const DriverDashboard: React.FC = () => {
     const handleRejectTrip = useCallback(async (tripId: number) => {
         if (!context) return;
     
+        // CRITICAL FIX: Check if the trip has already been rejected in this session
+        // before sending another request to the server. This prevents the 409 error.
+        if (sessionRejectedTripIds.has(tripId)) {
+            return;
+        }
+
         // Optimistic UI update: add to the global set of rejected IDs for this session.
         addRejectedTripId(tripId);
     
@@ -266,7 +272,7 @@ const DriverDashboard: React.FC = () => {
             // We just log the error for debugging.
             console.error('Error persisting trip rejection in background:', result);
         }
-    }, [context, addRejectedTripId]);
+    }, [context, addRejectedTripId, sessionRejectedTripIds]);
     
     // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
