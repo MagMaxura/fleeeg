@@ -65,7 +65,12 @@ const LocationPrompt: React.FC = () => {
     );
 };
 
-const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => void; }> = ({ trip, isAvailable = false, onAction }) => {
+const TripCard: React.FC<{ 
+    trip: Trip; 
+    isAvailable?: boolean; 
+    onAction?: () => void; 
+    onReject: () => void;
+}> = ({ trip, isAvailable = false, onAction, onReject }) => {
     const context = useContext(AppContext);
     const customer = useMemo(() => context?.users.find(u => u.id === trip.customer_id), [context?.users, trip.customer_id]);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -92,20 +97,6 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => v
             setIsLoading(false);
         } else {
             // Success: the component will be removed via onAction, so no need to reset state.
-            onAction?.();
-        }
-    };
-    
-    const handleReject = async () => {
-        if (!context) return;
-        setIsLoading(true);
-        setError('');
-        const result = await context.rejectTrip(trip.id);
-        if (result) {
-            setError(result.message);
-            setIsLoading(false);
-        } else {
-            // Success: the component will be removed via onAction.
             onAction?.();
         }
     };
@@ -167,7 +158,7 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => v
                         </div>
                         {isAvailable ? (
                             <div className="flex items-center gap-1">
-                                <Button onClick={handleReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
+                                <Button onClick={onReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
                                 <Button onClick={() => toggleOfferForm(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
                             </div>
                         ) : (
@@ -260,6 +251,21 @@ const DriverDashboard: React.FC = () => {
     useEffect(() => {
         fetchAvailableTrips();
     }, [fetchAvailableTrips]);
+
+    const handleRejectTrip = useCallback(async (tripId: number) => {
+        if (!context) return;
+    
+        // Optimistic UI update: remove the trip from the list immediately.
+        setRawAvailableTrips(prevTrips => prevTrips ? prevTrips.filter(t => t.id !== tripId) : []);
+    
+        const result = await context.rejectTrip(tripId);
+    
+        // If an unexpected error occurred, revert the change by re-fetching the truth from the server.
+        if (result) {
+            console.error('Error rejecting trip, reverting UI change.', result);
+            fetchAvailableTrips(); // Re-fetch to restore state
+        }
+    }, [context, fetchAvailableTrips]);
     
     // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
@@ -392,7 +398,7 @@ const DriverDashboard: React.FC = () => {
                                 ) : filteredTrips.length > 0 ? (
                                     filteredTrips.map((trip, i) => (
                                     <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                        <TripCard trip={trip} isAvailable onAction={fetchAvailableTrips} />
+                                        <TripCard trip={trip} isAvailable onAction={fetchAvailableTrips} onReject={() => handleRejectTrip(trip.id)} />
                                     </div>
                                     ))
                                 ) : (
@@ -442,7 +448,7 @@ const DriverDashboard: React.FC = () => {
                                 {myActiveTrips.length > 0 ? (
                                     myActiveTrips.map((trip, i) => (
                                         <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                            <TripCard trip={trip} />
+                                            <TripCard trip={trip} onReject={() => handleRejectTrip(trip.id)} />
                                         </div>
                                     ))
                                 ) : (
