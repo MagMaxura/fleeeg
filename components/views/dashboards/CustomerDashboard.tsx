@@ -47,7 +47,17 @@ const LocationPrompt: React.FC = () => {
 
 const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = ({ tripToEdit, onFinish }) => {
     const context = useContext(AppContext);
-    const [tripData, setTripData] = useState<Partial<NewTrip & { estimated_drive_time_min?: number, distance_km?: number }>>({});
+    const [tripData, setTripData] = useState<Partial<NewTrip & { 
+        estimated_drive_time_min?: number, 
+        distance_km?: number,
+        needs_loading_help?: boolean,
+        needs_unloading_help?: boolean,
+        number_of_helpers?: number
+    }>>({
+        needs_loading_help: false,
+        needs_unloading_help: false,
+        number_of_helpers: 0,
+    });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -67,14 +77,37 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const isEditMode = !!tripToEdit;
 
     useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && tripToEdit) {
             setTripData({
                 ...tripToEdit,
                 estimated_weight_kg: tripToEdit.estimated_weight_kg ?? undefined,
                 estimated_volume_m3: tripToEdit.estimated_volume_m3 ?? undefined,
+                needs_loading_help: tripToEdit.needs_loading_help || false,
+                needs_unloading_help: tripToEdit.needs_unloading_help || false,
+                number_of_helpers: tripToEdit.number_of_helpers || 0,
             });
              if (originRef.current) originRef.current.value = tripToEdit.origin;
              if (destinationRef.current) destinationRef.current.value = tripToEdit.destination;
+        } else {
+            // Explicitly reset form for new trip creation
+            setTripData({
+                needs_loading_help: false,
+                needs_unloading_help: false,
+                number_of_helpers: 0,
+                cargo_details: '',
+                origin: '',
+                destination: '',
+                estimated_weight_kg: undefined,
+                estimated_volume_m3: undefined,
+                price: undefined,
+            });
+            if (originRef.current) originRef.current.value = '';
+            if (destinationRef.current) destinationRef.current.value = '';
+            setOriginPlace(null);
+            setDestinationPlace(null);
+            if (directionsRendererRef.current) {
+                directionsRendererRef.current.setDirections({ routes: [] });
+            }
         }
     }, [tripToEdit, isEditMode]);
 
@@ -140,17 +173,56 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         }
     }, [initMapAndAutocompletes]);
 
+    const calculatePrice = useCallback(() => {
+        const { 
+            distance_km, estimated_drive_time_min,
+            needs_loading_help, needs_unloading_help, number_of_helpers 
+        } = tripData;
+    
+        if (distance_km === undefined || estimated_drive_time_min === undefined || distance_km === null || estimated_drive_time_min === null) {
+            setTripData(prev => ({ ...prev, price: undefined }));
+            return;
+        }
+        
+        const basePrice = distance_km * 250 + estimated_drive_time_min * 100;
+        const loadingCost = needs_loading_help ? 10000 : 0;
+        const unloadingCost = needs_unloading_help ? 10000 : 0;
+        const helpersCost = (number_of_helpers || 0) * 20000;
+        
+        const totalPrice = basePrice + loadingCost + unloadingCost + helpersCost;
+        const finalPrice = Math.max(5000, Math.round(totalPrice / 500) * 500);
+    
+        setTripData(prev => ({ ...prev, price: finalPrice }));
+    }, [tripData]);
+
+    useEffect(() => {
+        calculatePrice();
+    }, [
+        tripData.distance_km, 
+        tripData.estimated_drive_time_min, 
+        tripData.needs_loading_help, 
+        tripData.needs_unloading_help, 
+        tripData.number_of_helpers,
+        calculatePrice
+    ]);
+
     const handleCalculateRoute = useCallback(() => {
-        const originValue = originPlace?.place_id || tripToEdit?.origin;
-        const destinationValue = destinationPlace?.place_id || tripToEdit?.destination;
-        if (!originValue || !destinationValue || !window.google) return;
+        const originValue = originPlace?.place_id;
+        const destinationValue = destinationPlace?.place_id;
+
+        if (!originValue || !destinationValue || !window.google) {
+            if (tripData.price !== undefined) {
+               setTripData(prev => ({...prev, price: undefined}));
+            }
+            return;
+        };
         
         setIsCalculatingRoute(true);
         const directionsService = new window.google.maps.DirectionsService();
         directionsService.route(
             {
-                origin: originPlace?.place_id ? { placeId: originPlace.place_id } : { query: tripToEdit?.origin },
-                destination: destinationPlace?.place_id ? { placeId: destinationPlace.place_id } : { query: tripToEdit?.destination },
+                origin: { placeId: originValue },
+                destination: { placeId: destinationValue },
                 travelMode: window.google.maps.TravelMode.DRIVING,
             },
             (result: any, status: any) => {
@@ -159,15 +231,16 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                     const route = result.routes[0].legs[0];
                     const distanceKm = route.distance.value / 1000;
                     const driveTimeMin = Math.round(route.duration.value / 60);
-                    const price = Math.max(5000, Math.round((distanceKm * 250 + driveTimeMin * 100) / 500) * 500);
-                    setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin, price }));
+                    // Set route data, which will trigger the price calculation useEffect
+                    setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
                 } else {
                     setError('No se pudo calcular la ruta. Verifica las direcciones.');
+                    setTripData(prev => ({ ...prev, distance_km: undefined, estimated_drive_time_min: undefined }));
                 }
                  setIsCalculatingRoute(false);
             }
         );
-    }, [originPlace, destinationPlace, tripToEdit]);
+    }, [originPlace, destinationPlace]);
 
     useEffect(() => {
         handleCalculateRoute();
@@ -175,6 +248,15 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setTripData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+    
+    const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTripData(prev => ({ ...prev, [e.target.name]: e.target.checked }));
+    };
+
+    const handleHelpersChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const helpers = parseInt(e.target.value, 10);
+        setTripData(prev => ({ ...prev, number_of_helpers: isNaN(helpers) ? 0 : helpers }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -196,6 +278,9 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             distance_km: tripData.distance_km || null,
             estimated_drive_time_min: tripData.estimated_drive_time_min || null,
             price: tripData.price || null,
+            needs_loading_help: tripData.needs_loading_help ?? false,
+            needs_unloading_help: tripData.needs_unloading_help ?? false,
+            number_of_helpers: Number(tripData.number_of_helpers) || 0,
             origin_city: originPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.origin_city || null,
             origin_province: originPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || tripToEdit?.origin_province || null,
             destination_city: destinationPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.destination_city || null,
@@ -214,6 +299,20 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         setIsSubmitting(false);
     };
 
+    const getPriceBreakdown = () => {
+        if (!tripData.price) return null;
+        const { distance_km = 0, estimated_drive_time_min = 0 } = tripData;
+        const basePrice = distance_km * 250 + estimated_drive_time_min * 100;
+        return (
+            <>
+                <p>Base ({distance_km.toFixed(1)} km, {estimated_drive_time_min} min): ${Math.round(basePrice).toLocaleString()}</p>
+                {tripData.needs_loading_help && <p>Ayuda en carga: +$10.000</p>}
+                {tripData.needs_unloading_help && <p>Ayuda en descarga: +$10.000</p>}
+                {(tripData.number_of_helpers || 0) > 0 && <p>Ayudantes ({tripData.number_of_helpers}): +${((tripData.number_of_helpers || 0) * 20000).toLocaleString()}</p>}
+            </>
+        )
+    };
+
     return (
         <Card className="!p-0 overflow-hidden">
             <div ref={mapRef} className={`w-full h-48 bg-slate-800 transition-all duration-300 ${apiKeyMissing ? 'flex items-center justify-center' : ''}`}>
@@ -227,16 +326,44 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                     <Input name="estimated_weight_kg" label="Peso (kg)" type="number" placeholder="Ej: 80" onChange={handleInputChange} value={tripData.estimated_weight_kg?.toString() || ''} required />
                     <Input name="estimated_volume_m3" label="Volumen (m³)" type="number" step="0.1" placeholder="Ej: 1.5" onChange={handleInputChange} value={tripData.estimated_volume_m3?.toString() || ''} required />
                 </div>
+                
+                <div className="space-y-3 rounded-lg bg-slate-900/50 p-4 border border-slate-700/80 !mt-6">
+                    <h4 className="font-semibold text-slate-200 mb-3">Servicios Adicionales</h4>
+                    <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60">
+                        <span className="text-slate-300">¿Ayuda para cargar en origen?</span>
+                        <div className="flex items-center gap-3">
+                            <span className="font-semibold text-amber-400/90 text-sm">+$10.000</span>
+                            <input type="checkbox" name="needs_loading_help" checked={!!tripData.needs_loading_help} onChange={handleCheckboxChange} className="h-5 w-5 rounded bg-slate-700 border-slate-600 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer" />
+                        </div>
+                    </label>
+                     <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60">
+                        <span className="text-slate-300">¿Ayuda para descargar en destino?</span>
+                        <div className="flex items-center gap-3">
+                            <span className="font-semibold text-amber-400/90 text-sm">+$10.000</span>
+                            <input type="checkbox" name="needs_unloading_help" checked={!!tripData.needs_unloading_help} onChange={handleCheckboxChange} className="h-5 w-5 rounded bg-slate-700 border-slate-600 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer" />
+                        </div>
+                    </label>
+                     <div className="flex items-center justify-between p-2">
+                        <label htmlFor="number_of_helpers" className="text-slate-300">¿Cuántos ayudantes necesitas?</label>
+                        <div className="flex items-center gap-3">
+                            <span className="font-semibold text-amber-400/90 text-sm">+$20.000 c/u</span>
+                            <Input type="number" name="number_of_helpers" id="number_of_helpers" value={tripData.number_of_helpers || 0} min="0" max="5" onChange={handleHelpersChange} className="!p-1 w-16 text-center" />
+                        </div>
+                    </div>
+                </div>
+
 
                 {isCalculatingRoute ? (
                      <div className="flex items-center justify-center gap-2 text-slate-400 pt-2"><Spinner /><span>Calculando ruta y precio...</span></div>
-                ) : tripData.price && (
-                    <div className="pt-2 text-center animate-fadeSlideIn">
+                ) : tripData.price ? (
+                    <div className="pt-2 text-center animate-fadeSlideIn bg-slate-900/50 rounded-lg p-4">
                         <p className="text-slate-300">Precio Estimado:</p>
                         <p className="text-3xl font-bold text-green-400">${tripData.price.toLocaleString()}</p>
-                        <p className="text-xs text-slate-500">{tripData.distance_km?.toFixed(1)} km &bull; {tripData.estimated_drive_time_min} min de viaje</p>
+                        <div className="text-xs text-slate-500 space-y-0.5 mt-2">
+                            {getPriceBreakdown()}
+                        </div>
                     </div>
-                )}
+                ) : null}
                 {error && <p className="text-sm text-red-400 text-center animate-shake">{error}</p>}
                 <div className="flex gap-2 !mt-6">
                     {isEditMode && <Button type="button" variant="secondary" onClick={onFinish} className="w-full">Cancelar</Button>}

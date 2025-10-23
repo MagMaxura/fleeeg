@@ -423,6 +423,8 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
         </Card>
     );
   };
+  
+  const hasAdditionalServices = trip.needs_loading_help || trip.needs_unloading_help || (trip.number_of_helpers > 0);
 
 
   return (
@@ -465,6 +467,33 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                     <span className="flex items-center gap-2" title="Peso"><Icon type="weight" className="w-5 h-5 text-slate-400" /> {trip.estimated_weight_kg} kg</span>
                     <span className="flex items-center gap-2" title="Volumen"><Icon type="volume" className="w-5 h-5 text-slate-400" /> {trip.estimated_volume_m3} m³</span>
                 </div>
+
+                {hasAdditionalServices && (
+                    <div className="mt-4 border-t border-slate-800 pt-4">
+                        <h4 className="font-semibold text-slate-200 mb-2">Servicios Adicionales Contratados:</h4>
+                        <div className="flex flex-col gap-2 text-sm text-slate-300">
+                            {trip.needs_loading_help && (
+                                <span className="flex items-center gap-2">
+                                    <Icon type="checkCircle" className="w-5 h-5 text-green-400" />
+                                    Ayuda para cargar en origen
+                                </span>
+                            )}
+                            {trip.needs_unloading_help && (
+                                <span className="flex items-center gap-2">
+                                    <Icon type="checkCircle" className="w-5 h-5 text-green-400" />
+                                    Ayuda para descargar en destino
+                                </span>
+                            )}
+                            {trip.number_of_helpers > 0 && (
+                                <span className="flex items-center gap-2">
+                                    <Icon type="checkCircle" className="w-5 h-5 text-green-400" />
+                                    {trip.number_of_helpers} {trip.number_of_helpers === 1 ? 'Ayudante' : 'Ayudantes'}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                  { driver && (
                     <div className="mt-6 border-t border-slate-800 pt-4 animate-fadeSlideIn">
                         <h4 className="font-bold text-lg text-slate-200 mb-3">Fletero Asignado</h4>

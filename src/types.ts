@@ -25,6 +25,9 @@ export type Database = {
           estimated_load_time_min: number | null;
           estimated_unload_time_min: number | null;
           driver_arrival_time_min: number | null;
+          needs_loading_help: boolean;
+          needs_unloading_help: boolean;
+          number_of_helpers: number;
           price: number | null;
           status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
           start_time: string | null;
@@ -48,6 +51,9 @@ export type Database = {
           estimated_drive_time_min?: number | null;
           estimated_load_time_min?: number | null;
           estimated_unload_time_min?: number | null;
+          needs_loading_help?: boolean;
+          needs_unloading_help?: boolean;
+          number_of_helpers?: number;
           price?: number | null;
           status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
         };
@@ -68,6 +74,9 @@ export type Database = {
           estimated_load_time_min?: number | null;
           estimated_unload_time_min?: number | null;
           driver_arrival_time_min?: number | null;
+          needs_loading_help?: boolean;
+          needs_unloading_help?: boolean;
+          number_of_helpers?: number;
           price?: number | null;
           status?: "requested" | "accepted" | "in_transit" | "completed" | "paid";
           start_time?: string | null;
@@ -85,7 +94,9 @@ export type Database = {
           address: string;
           city: string | null;
           province: string | null;
-          role: "customer" | "driver";
+          // FIX: Application logic (e.g., in DashboardView) handles cases where a user's
+          // profile might be incomplete and lack a role. The type is updated to allow null to reflect this reality.
+          role: "customer" | "driver" | null;
           vehicle: string | null;
           vehicle_type: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
           capacity_kg: number | null;
@@ -136,7 +147,8 @@ export type Database = {
           address?: string;
           city?: string | null;
           province?: string | null;
-          role?: "customer" | "driver";
+          // FIX: Updated to allow role to be nullable, consistent with the Row type.
+          role?: "customer" | "driver" | null;
           vehicle?: string | null;
           vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
           capacity_kg?: number | null;

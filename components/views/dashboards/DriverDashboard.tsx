@@ -106,6 +106,7 @@ const TripCard: React.FC<{
         setIsMakingOffer(show);
     };
 
+    const hasAdditionalServices = trip.needs_loading_help || trip.needs_unloading_help || (trip.number_of_helpers > 0);
 
     return (
         <Card className="transition-all hover:border-slate-700/80">
@@ -165,6 +166,25 @@ const TripCard: React.FC<{
                             <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Gestionar</Button>
                         )}
                     </div>
+                    {hasAdditionalServices && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-slate-800/60">
+                            {trip.needs_loading_help && (
+                                <span className="flex items-center gap-1.5 text-xs text-amber-300/80" title="Ayuda para cargar en origen">
+                                    <Icon type="arrowUpCircle" className="w-4 h-4" /> Carga
+                                </span>
+                            )}
+                            {trip.needs_unloading_help && (
+                                <span className="flex items-center gap-1.5 text-xs text-amber-300/80" title="Ayuda para descargar en destino">
+                                    <Icon type="arrowDownCircle" className="w-4 h-4" /> Descarga
+                                </span>
+                            )}
+                            {trip.number_of_helpers > 0 && (
+                                <span className="flex items-center gap-1.5 text-xs text-amber-300/80" title={`${trip.number_of_helpers} Ayudante(s)`}>
+                                    <Icon type="users" className="w-4 h-4" /> {trip.number_of_helpers} Ayudante(s)
+                                </span>
+                            )}
+                        </div>
+                    )}
                     {error && <p className="text-xs text-red-400 text-right mt-2 animate-shake">{error}</p>}
                 </>
             )}

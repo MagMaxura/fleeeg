@@ -7,7 +7,8 @@ import type {
     View, 
     NewTrip, 
     SimpleAuthError,
-    TripUpdate
+    TripUpdate,
+    ProfileInsert
 } from './src/types.ts';
 
 // The shape of the global application context.
@@ -21,6 +22,9 @@ export interface AppContextType {
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   loginUser: (email: string, password: string) => Promise<SimpleAuthError | null>;
+  // FIX: Reverted the type for `registerUser`'s `newUser` parameter from `ProfileInsert` back to `Omit<Profile, 'id'>`.
+  // The recent change to `ProfileInsert` likely introduced a type resolution issue that caused the Supabase client to become untyped,
+  // leading to widespread 'never' errors in App.tsx. Using the Row type (`Profile`) via Omit is a safer alternative that resolves the type conflict.
   registerUser: (newUser: Omit<Profile, 'id'>, password: string, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   updateUserProfile: (updatedProfileData: Partial<Profile>, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   logout: () => Promise<void>;
