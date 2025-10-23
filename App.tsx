@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -155,8 +156,29 @@ const App: React.FC = () => {
             setUser(null);
             setIsDataLoading(false);
         } else if (profile) {
-            const isNewLogin = !userRef.current || userRef.current.id !== (profile as Profile).id;
-            setUser(profile as Profile);
+            const typedProfile = profile as Profile;
+            const isNewLogin = !userRef.current || userRef.current.id !== typedProfile.id;
+            setUser(typedProfile);
+
+            // Pre-load all historical rejections for the driver to prevent displaying
+            // trips they've already rejected in the past. This definitively prevents the 409 Conflict error.
+            if (typedProfile.role === 'driver') {
+                const { data: rejections, error: rejectionsError } = await supabase
+                    .from('driver_trip_rejections')
+                    .select('trip_id')
+                    .eq('driver_id', typedProfile.id);
+                
+                if (rejectionsError) {
+                    console.error("Error fetching driver's past rejections:", rejectionsError);
+                } else if (rejections) {
+                    const rejectedIds = rejections.map(r => r.trip_id);
+                    setSessionRejectedTripIds(new Set(rejectedIds));
+                }
+            } else {
+                // If user is not a driver, ensure the set is empty.
+                setSessionRejectedTripIds(new Set());
+            }
+
             if (isNewLogin) { // Fetch all data only on a new login.
                 await fetchAllData();
             }
@@ -172,6 +194,7 @@ const App: React.FC = () => {
         setTrips([]);
         setReviews([]);
         setOffers([]);
+        setSessionRejectedTripIds(new Set()); // Explicitly clear on logout
         setIsDataLoading(false);
     }
   }, [fetchAllData]);
