@@ -471,11 +471,29 @@ const App: React.FC = () => {
   }, []);
 
   const deleteTrip = useCallback<AppContextType['deleteTrip']>(async (tripId) => {
+    const tripToDelete = tripsRef.current.find(t => t.id === tripId);
+    if (!tripToDelete) {
+        console.warn(`Trip with id ${tripId} not found for deletion.`);
+        return null;
+    }
+
+    // Optimistic UI update: remove the trip from the local state instantly.
+    setTrips(currentTrips => currentTrips.filter(trip => trip.id !== tripId));
+
     const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    
     if (error) {
         console.error(`Error deleting trip: ${error.message}`, error);
-        return { name: 'DBError', message: error.message };
+        // If the API call fails, roll back the change by adding the trip back to the state.
+        setTrips(currentTrips => 
+            [...currentTrips, tripToDelete].sort((a, b) => 
+                new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
+            )
+        );
+        return { name: 'DBError', message: `No se pudo eliminar el viaje: ${error.message}` };
     }
+
+    // On success, the state is already updated. No further action needed.
     return null;
   }, []);
 
