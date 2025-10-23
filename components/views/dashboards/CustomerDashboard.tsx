@@ -329,25 +329,30 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 
                 <div className="space-y-3 rounded-lg bg-slate-900/50 p-4 border border-slate-700/80 !mt-6">
                     <h4 className="font-semibold text-slate-200 mb-3">Servicios Adicionales</h4>
-                    <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60">
-                        <span className="text-slate-300">¿Ayuda para cargar en origen?</span>
-                        <div className="flex items-center gap-3">
+                    <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60 gap-4">
+                        <span className="text-slate-300">En ORIGEN: ¿Hace falta que el fletero te ayude a cargar las cosas?</span>
+                        <div className="flex items-center gap-3 flex-shrink-0">
                             <span className="font-semibold text-amber-400/90 text-sm">+$10.000</span>
                             <input type="checkbox" name="needs_loading_help" checked={!!tripData.needs_loading_help} onChange={handleCheckboxChange} className="h-5 w-5 rounded bg-slate-700 border-slate-600 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer" />
                         </div>
                     </label>
-                     <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60">
-                        <span className="text-slate-300">¿Ayuda para descargar en destino?</span>
-                        <div className="flex items-center gap-3">
+                     <label className="flex items-center justify-between cursor-pointer p-2 rounded-md hover:bg-slate-800/60 gap-4">
+                        <span className="text-slate-300">En DESTINO: ¿Es el fletero el que tiene que descargar las cosas?</span>
+                        <div className="flex items-center gap-3 flex-shrink-0">
                             <span className="font-semibold text-amber-400/90 text-sm">+$10.000</span>
                             <input type="checkbox" name="needs_unloading_help" checked={!!tripData.needs_unloading_help} onChange={handleCheckboxChange} className="h-5 w-5 rounded bg-slate-700 border-slate-600 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer" />
                         </div>
                     </label>
-                     <div className="flex items-center justify-between p-2">
-                        <label htmlFor="number_of_helpers" className="text-slate-300">¿Cuántos ayudantes necesitas?</label>
-                        <div className="flex items-center gap-3">
-                            <span className="font-semibold text-amber-400/90 text-sm">+$20.000 c/u</span>
-                            <Input type="number" name="number_of_helpers" id="number_of_helpers" value={tripData.number_of_helpers || 0} min="0" max="5" onChange={handleHelpersChange} className="!p-1 w-16 text-center" />
+                    <div className="p-2">
+                        <label htmlFor="number_of_helpers" className="block text-slate-300 mb-2">
+                            Según tu entendimiento, ¿hacen falta más personas para el movimiento de este flete?
+                        </label>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 text-sm font-medium">¿Cuántas personas extra?</span>
+                            <div className="flex items-center gap-3">
+                                <span className="font-semibold text-amber-400/90 text-sm">+$20.000 c/u</span>
+                                <Input type="number" name="number_of_helpers" id="number_of_helpers" value={tripData.number_of_helpers || 0} min="0" max="5" onChange={handleHelpersChange} className="!p-1 w-16 text-center" />
+                            </div>
                         </div>
                     </div>
                 </div>

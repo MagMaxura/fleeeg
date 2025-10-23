@@ -123,7 +123,8 @@ export type Database = {
             address: string;
             city?: string | null;
             province?: string | null;
-            role: "customer" | "driver";
+            // FIX: Changed role to be optional and nullable to align with Row/Update types and fix Supabase client type inference.
+            role?: "customer" | "driver" | null;
             vehicle?: string | null;
             vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
             capacity_kg?: number | null;
