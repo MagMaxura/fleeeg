@@ -1,8 +1,5 @@
-
-
 import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
-// FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
 import type { Trip, Driver, Offer } from '../../../src/types.ts';
 import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
 import { supabase } from '../../../services/supabaseService.ts';
@@ -68,7 +65,7 @@ const LocationPrompt: React.FC = () => {
     );
 };
 
-const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onOfferMade?: () => void; }> = ({ trip, isAvailable = false, onOfferMade }) => {
+const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onAction?: () => void; }> = ({ trip, isAvailable = false, onAction }) => {
     const context = useContext(AppContext);
     const customer = useMemo(() => context?.users.find(u => u.id === trip.customer_id), [context?.users, trip.customer_id]);
     const [isLoading, setIsLoading] = React.useState(false);
@@ -90,8 +87,16 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onOfferMade?: () =
         setIsLoading(true);
         await context.placeOffer(trip.id, Number(offerPrice), offerNotes);
         setIsLoading(false);
-        setIsMakingOffer(false); // Close form on success
-        onOfferMade?.(); // Notify parent to refresh list
+        setIsMakingOffer(false);
+        onAction?.();
+    };
+    
+    const handleReject = async () => {
+        if (!context) return;
+        setIsLoading(true);
+        await context.rejectTrip(trip.id);
+        // We don't need to set isLoading to false, as the component will disappear
+        onAction?.();
     };
 
     return (
@@ -143,7 +148,10 @@ const TripCard: React.FC<{ trip: Trip; isAvailable?: boolean; onOfferMade?: () =
                         <span className="flex items-center gap-1.5 text-slate-300" title="Volumen"><Icon type="volume" className="w-4 h-4 text-slate-400"/> {trip.estimated_volume_m3} m³</span>
                     </div>
                     {isAvailable ? (
-                        <Button onClick={() => setIsMakingOffer(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
+                        <div className="flex items-center gap-1">
+                            <Button onClick={handleReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
+                            <Button onClick={() => setIsMakingOffer(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
+                        </div>
                     ) : (
                         <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Gestionar</Button>
                     )}
@@ -204,7 +212,6 @@ const DriverDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'available' | 'offers' | 'active'>('available');
     const [activeFilters, setActiveFilters] = useState<{ cities: Set<string> }>({ cities: new Set() });
     
-    // FIX: State for trips fetched from the serverless function to bypass RLS.
     const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
     const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
 
@@ -213,7 +220,6 @@ const DriverDashboard: React.FC = () => {
     }
     const user = context.user as Driver;
     
-    // FIX: Fetch available trips from an edge function to bypass RLS.
     const fetchAvailableTrips = useCallback(async () => {
         if (!user) return;
         setIsLoadingAvailable(true);
@@ -232,7 +238,6 @@ const DriverDashboard: React.FC = () => {
     }, [user]);
 
     useEffect(() => {
-        // Fetch trips when the component mounts or the user changes.
         fetchAvailableTrips();
     }, [fetchAvailableTrips]);
     
@@ -367,7 +372,7 @@ const DriverDashboard: React.FC = () => {
                                 ) : filteredTrips.length > 0 ? (
                                     filteredTrips.map((trip, i) => (
                                     <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                        <TripCard trip={trip} isAvailable onOfferMade={fetchAvailableTrips} />
+                                        <TripCard trip={trip} isAvailable onAction={fetchAvailableTrips} />
                                     </div>
                                     ))
                                 ) : (

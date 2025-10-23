@@ -18,15 +18,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // The driverId is passed but currently unused in this simplified version.
-    // It's kept for potential future use (e.g., logging or driver-specific logic).
     const { driverId } = await req.json();
     if (!driverId) {
         throw new Error("driverId is required in the request body.");
     }
       
     // We need to use the service role key to bypass RLS.
-    // Robust check for environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     if (!supabaseUrl) throw new Error('SUPABASE_URL is not defined in environment variables.');
     
@@ -35,20 +32,37 @@ Deno.serve(async (req: Request) => {
     
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // Fetch all trips that are in the 'requested' state, bypassing any RLS policies.
-    // All filtering (by city, capacity, etc.) will now be handled on the client-side
-    // to ensure no trips are hidden from the driver by stale server-side preferences.
-    const { data: trips, error: tripsError } = await supabaseAdmin
+    // 1. Fetch the list of trip IDs that this driver has rejected.
+    const { data: rejections, error: rejectionsError } = await supabaseAdmin
+      .from('driver_trip_rejections')
+      .select('trip_id')
+      .eq('driver_id', driverId);
+
+    if (rejectionsError) {
+      throw rejectionsError;
+    }
+
+    const rejectedTripIds = rejections.map(r => r.trip_id);
+
+    // 2. Fetch all trips that are in the 'requested' state...
+    let query = supabaseAdmin
       .from('trips')
       .select('*')
       .eq('status', 'requested')
       .order('created_at', { ascending: false });
 
+    // 3. ...and filter out the ones the driver has rejected.
+    if (rejectedTripIds.length > 0) {
+      query = query.not('id', 'in', `(${rejectedTripIds.join(',')})`);
+    }
+
+    const { data: trips, error: tripsError } = await query;
+
     if (tripsError) {
       throw tripsError;
     }
 
-    // Return the full list of available trips.
+    // Return the filtered list of available trips.
     return new Response(JSON.stringify(trips || []), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

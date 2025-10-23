@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -420,16 +418,49 @@ const App: React.FC = () => {
         driver_id: null,
     };
 
-    // FIX: Corrected payload type to satisfy Supabase client.
     const { error } = await supabase.from('trips').insert(tripToInsert);
     if (error) {
       console.error(`Error creating trip: ${error.message}`, error);
       return { name: 'DBError', message: error.message };
     }
     
-    await fetchAllData();
+    // Real-time subscription will handle UI update.
     return null;
-  }, [fetchAllData]);
+  }, []);
+  
+  const updateTrip = useCallback<AppContextType['updateTrip']>(async (tripId, tripData) => {
+    const { error } = await supabase.from('trips').update(tripData).eq('id', tripId);
+    if (error) {
+        console.error(`Error updating trip: ${error.message}`, error);
+        return { name: 'DBError', message: error.message };
+    }
+    return null;
+  }, []);
+
+  const deleteTrip = useCallback<AppContextType['deleteTrip']>(async (tripId) => {
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) {
+        console.error(`Error deleting trip: ${error.message}`, error);
+        return { name: 'DBError', message: error.message };
+    }
+    return null;
+  }, []);
+
+  const rejectTrip = useCallback<AppContextType['rejectTrip']>(async (tripId) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'driver') {
+        return { name: 'AuthError', message: 'Solo los fleteros pueden rechazar viajes.' };
+    }
+    const { error } = await supabase.from('driver_trip_rejections').insert({
+        driver_id: currentUser.id,
+        trip_id: tripId,
+    });
+    if (error) {
+        console.error(`Error rejecting trip: ${error.message}`, error);
+        return { name: 'DBError', message: error.message };
+    }
+    return null;
+  }, []);
 
   const placeOffer = useCallback<AppContextType['placeOffer']>(async (tripId, price, notes) => {
     const currentUser = userRef.current;
@@ -445,7 +476,6 @@ const App: React.FC = () => {
         status: 'pending'
     };
 
-    // FIX: Corrected payload type to satisfy Supabase client.
     const { error } = await supabase.from('offers').insert(offerToInsert);
     if (error) {
         console.error("Error placing offer:", error);
@@ -453,10 +483,8 @@ const App: React.FC = () => {
     }
     
     // The real-time subscription will handle updating the UI for all users.
-    // A manual fetch is redundant but kept for immediate feedback for the action-taker.
-    await fetchAllData();
     return null;
-  }, [fetchAllData]);
+  }, []);
 
   const acceptOffer = useCallback<AppContextType['acceptOffer']>(async (offerId) => {
     const currentUser = userRef.current;
@@ -481,7 +509,6 @@ const App: React.FC = () => {
     
     // Perform updates in a transaction-like manner
     // 1. Update Trip
-    // FIX: Explicitly type payload for Supabase update method.
     const tripUpdatePayload: Partial<TripUpdate> = {
         driver_id: offerToAccept.driver_id,
         status: 'accepted' as const,
@@ -499,7 +526,6 @@ const App: React.FC = () => {
     }
 
     // 2. Update Accepted Offer
-    // FIX: Explicitly type payload for Supabase update method.
     const offerUpdatePayload: Partial<OfferUpdate> = { status: 'accepted' as const };
     const { error: offerError } = await supabase
         .from('offers')
@@ -514,7 +540,6 @@ const App: React.FC = () => {
         .map(o => o.id);
 
     if (otherOfferIds.length > 0) {
-        // FIX: Explicitly type payload for Supabase update method.
         const rejectOfferPayload: Partial<OfferUpdate> = { status: 'rejected' as const };
         const { error: rejectError } = await supabase
             .from('offers')
@@ -525,15 +550,12 @@ const App: React.FC = () => {
     }
     
     // The real-time subscription will handle updating the UI for all users.
-    // A manual fetch is redundant but kept for immediate feedback for the action-taker.
-    await fetchAllData();
-  }, [fetchAllData, users]);
+  }, [users]);
 
   const startTrip = useCallback<AppContextType['startTrip']>(async (tripId) => {
     const currentUser = userRef.current;
     if (!currentUser || currentUser.role !== 'driver') return;
 
-    // FIX: Explicitly type payload for Supabase update method.
     const updatePayload: TripUpdate = { 
         status: 'in_transit' as const, 
         start_time: new Date().toISOString() 
@@ -542,8 +564,7 @@ const App: React.FC = () => {
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     
     if (error) console.error("Error starting trip:", error);
-    else await fetchAllData(); // Kept for immediate feedback
-  }, [fetchAllData]);
+  }, []);
 
   const completeTrip = useCallback<AppContextType['completeTrip']>(async (tripId) => {
     const trip = tripsRef.current.find(t => t.id === tripId);
@@ -551,8 +572,6 @@ const App: React.FC = () => {
         const startTimeMs = new Date(trip.start_time).getTime();
         const finalDurationMin = Math.ceil((Date.now() - startTimeMs) / (1000 * 60));
         
-        // The final price is now set from the accepted offer, so we no longer calculate it here.
-        // FIX: Explicitly type payload for Supabase update method.
         const updatePayload: Partial<TripUpdate> = { 
             status: 'completed' as const, 
             final_duration_min: finalDurationMin, 
@@ -560,17 +579,14 @@ const App: React.FC = () => {
         const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
 
         if (error) console.error("Error completing trip:", error);
-        else await fetchAllData(); // Kept for immediate feedback
     }
-  }, [fetchAllData]);
+  }, []);
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
-    // FIX: Explicitly type payload for Supabase update method.
     const updatePayload: Partial<TripUpdate> = { status: 'paid' as const };
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
     if (error) console.error("Error processing payment:", error);
-    else await fetchAllData(); // Kept for immediate feedback
-  }, [fetchAllData]);
+  }, []);
 
   const sendChatMessage = useCallback<AppContextType['sendChatMessage']>(async (tripId, content) => {
     const currentUser = userRef.current;
@@ -580,7 +596,6 @@ const App: React.FC = () => {
       sender_id: currentUser.id,
       content: content,
     };
-    // FIX: Corrected payload type to satisfy Supabase client.
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
@@ -597,7 +612,6 @@ const App: React.FC = () => {
         rating,
         comment,
     };
-    // FIX: Corrected payload type to satisfy Supabase client.
     const { error } = await supabase.from('reviews').insert(reviewToInsert);
     if (error) {
       console.error("Error submitting review:", error);
@@ -630,6 +644,9 @@ const App: React.FC = () => {
     registerUser,
     updateUserProfile,
     createTrip,
+    updateTrip,
+    deleteTrip,
+    rejectTrip,
     placeOffer,
     acceptOffer,
     startTrip,
@@ -646,7 +663,7 @@ const App: React.FC = () => {
     requestLocationPermission,
   }), [
       user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser, 
-      updateUserProfile, createTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment, 
+      updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment, 
       viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout, 
       activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission
   ]);

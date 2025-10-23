@@ -1,7 +1,5 @@
-
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
-// FIX: Corrected import path to point to the centralized types file in `src/`.
 import type { Trip, NewTrip } from '../../../src/types.ts';
 import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui.tsx';
 
@@ -47,12 +45,10 @@ const LocationPrompt: React.FC = () => {
     );
 };
 
-const CreateTripForm: React.FC = () => {
+const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = ({ tripToEdit, onFinish }) => {
     const context = useContext(AppContext);
     const [tripData, setTripData] = useState<Partial<NewTrip & { estimated_drive_time_min?: number, distance_km?: number }>>({});
-    const [isEstimating, setIsEstimating] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [estimate, setEstimate] = useState<any>(null);
     const [error, setError] = useState('');
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
     const [apiKeyMissing, setApiKeyMissing] = useState(false);
@@ -65,139 +61,96 @@ const CreateTripForm: React.FC = () => {
     const mapInstanceRef = useRef<any>(null);
     const directionsRendererRef = useRef<any>(null);
     
-    // State to hold confirmed places from autocomplete
     const [originPlace, setOriginPlace] = useState<any>(null);
     const [destinationPlace, setDestinationPlace] = useState<any>(null);
+    
+    const isEditMode = !!tripToEdit;
 
     useEffect(() => {
-        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
-        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
+        if (isEditMode) {
+            setTripData({
+                ...tripToEdit,
+                estimated_weight_kg: tripToEdit.estimated_weight_kg ?? undefined,
+                estimated_volume_m3: tripToEdit.estimated_volume_m3 ?? undefined,
+            });
+             if (originRef.current) originRef.current.value = tripToEdit.origin;
+             if (destinationRef.current) destinationRef.current.value = tripToEdit.destination;
+        }
+    }, [tripToEdit, isEditMode]);
 
+    const initMapAndAutocompletes = useCallback(() => {
+        if (!window.google) return;
+        
+        const mapOptions = {
+            center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
+            zoom: 4,
+            disableDefaultUI: true,
+            styles: [/* Dark theme styles */]
+        };
+        
+        if (mapRef.current && !mapInstanceRef.current) {
+            mapInstanceRef.current = new window.google.maps.Map(mapRef.current, mapOptions);
+            directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+                map: mapInstanceRef.current,
+                suppressMarkers: true,
+                polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4, strokeOpacity: 0.8 },
+            });
+        }
+
+        const autocompleteOptions = {
+            componentRestrictions: { country: 'AR' },
+            fields: ['address_components', 'geometry', 'name', 'formatted_address', 'place_id'],
+        };
+
+        if (originRef.current && !originAutocompleteRef.current) {
+            originAutocompleteRef.current = new window.google.maps.places.Autocomplete(originRef.current, autocompleteOptions);
+            originAutocompleteRef.current.addListener('place_changed', () => {
+                setOriginPlace(originAutocompleteRef.current.getPlace());
+                handleInputChange({ target: { name: 'origin', value: originRef.current?.value } } as any);
+            });
+        }
+
+        if (destinationRef.current && !destinationAutocompleteRef.current) {
+            destinationAutocompleteRef.current = new window.google.maps.places.Autocomplete(destinationRef.current, autocompleteOptions);
+            destinationAutocompleteRef.current.addListener('place_changed', () => {
+                setDestinationPlace(destinationAutocompleteRef.current.getPlace());
+                handleInputChange({ target: { name: 'destination', value: destinationRef.current?.value } } as any);
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
         if (!apiKey) {
-            console.warn("Google Maps API Key not provided. Map features will be disabled.");
             setApiKeyMissing(true);
             return;
         }
         setApiKeyMissing(false);
-
-        const loadScript = (src: string, id: string) => {
-            return new Promise<void>((resolve, reject) => {
-                if (document.getElementById(id)) {
-                    resolve();
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = src;
-                script.id = id;
-                script.async = true;
-                script.defer = true;
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error(`Script load error for ${src}`));
-                document.head.appendChild(script);
-            });
-        };
-
-        const initMapAndAutocompletes = () => {
-            if (!window.google) return;
-            
-            if (mapRef.current && !mapInstanceRef.current) {
-                const map = new window.google.maps.Map(mapRef.current, {
-                    center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
-                    zoom: 4,
-                    disableDefaultUI: true,
-                    styles: [
-                        { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-                        { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-                        { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-                        {
-                            featureType: 'administrative.locality',
-                            elementType: 'labels.text.fill',
-                            stylers: [{ color: '#d59563' }],
-                        },
-                        {
-                            featureType: 'poi',
-                            elementType: 'labels.text.fill',
-                            stylers: [{ color: '#d59563' }],
-                        },
-                        {
-                            featureType: 'road',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#38414e' }],
-                        },
-                        {
-                            featureType: 'road',
-                            elementType: 'labels.text.fill',
-                            stylers: [{ color: '#9ca5b3' }],
-                        },
-                         {
-                            featureType: 'road.highway',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#746855' }],
-                        },
-                        {
-                            featureType: 'transit',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#2f3948' }],
-                        },
-                        {
-                            featureType: 'water',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#17263c' }],
-                        },
-                        {
-                            featureType: 'water',
-                            elementType: 'labels.text.fill',
-                            stylers: [{ color: '#515c6d' }],
-                        },
-                    ],
-                });
-                mapInstanceRef.current = map;
-                directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
-                    map: map,
-                    suppressMarkers: true,
-                    polylineOptions: {
-                        strokeColor: '#f59e0b',
-                        strokeWeight: 4,
-                        strokeOpacity: 0.8,
-                    },
-                });
-            }
-
-            const autocompleteOptions = {
-                componentRestrictions: { country: 'AR' },
-                fields: ['address_components', 'geometry', 'name', 'formatted_address'],
-            };
-
-            if (originRef.current && !originAutocompleteRef.current) {
-                originAutocompleteRef.current = new window.google.maps.places.Autocomplete(originRef.current, autocompleteOptions);
-                originAutocompleteRef.current.addListener('place_changed', () => {
-                    setOriginPlace(originAutocompleteRef.current.getPlace());
-                    handleInputChange({ target: { name: 'origin', value: originRef.current?.value } } as any);
-                });
-            }
-
-            if (destinationRef.current && !destinationAutocompleteRef.current) {
-                destinationAutocompleteRef.current = new window.google.maps.places.Autocomplete(destinationRef.current, autocompleteOptions);
-                destinationAutocompleteRef.current.addListener('place_changed', () => {
-                    setDestinationPlace(destinationAutocompleteRef.current.getPlace());
-                    handleInputChange({ target: { name: 'destination', value: destinationRef.current?.value } } as any);
-                });
-            }
-        };
-
-        loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
-            .then(initMapAndAutocompletes)
-            .catch(err => console.error("Could not load Google Maps script", err));
-    }, [apiKeyMissing]);
+        const scriptId = 'google-maps-script';
+        if (!document.getElementById(scriptId)) {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+            script.id = scriptId;
+            script.async = true;
+            script.defer = true;
+            script.onload = () => initMapAndAutocompletes();
+            document.head.appendChild(script);
+        } else {
+            initMapAndAutocompletes();
+        }
+    }, [initMapAndAutocompletes]);
 
     const handleCalculateRoute = useCallback(() => {
-        if (!originPlace || !destinationPlace || !window.google) return;
+        const originValue = originPlace?.place_id || tripToEdit?.origin;
+        const destinationValue = destinationPlace?.place_id || tripToEdit?.destination;
+        if (!originValue || !destinationValue || !window.google) return;
+        
         setIsCalculatingRoute(true);
         const directionsService = new window.google.maps.DirectionsService();
         directionsService.route(
             {
-                origin: { placeId: originPlace.place_id },
-                destination: { placeId: destinationPlace.place_id },
+                origin: originPlace?.place_id ? { placeId: originPlace.place_id } : { query: tripToEdit?.origin },
+                destination: destinationPlace?.place_id ? { placeId: destinationPlace.place_id } : { query: tripToEdit?.destination },
                 travelMode: window.google.maps.TravelMode.DRIVING,
             },
             (result: any, status: any) => {
@@ -206,19 +159,15 @@ const CreateTripForm: React.FC = () => {
                     const route = result.routes[0].legs[0];
                     const distanceKm = route.distance.value / 1000;
                     const driveTimeMin = Math.round(route.duration.value / 60);
-                    
-                    const price = Math.max(5000, Math.round((distanceKm * 250 + driveTimeMin * 100) / 500) * 500); // Pricing logic
-                    
+                    const price = Math.max(5000, Math.round((distanceKm * 250 + driveTimeMin * 100) / 500) * 500);
                     setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin, price }));
-
                 } else {
-                    console.error(`Directions request failed due to ${status}`);
                     setError('No se pudo calcular la ruta. Verifica las direcciones.');
                 }
                  setIsCalculatingRoute(false);
             }
         );
-    }, [originPlace, destinationPlace]);
+    }, [originPlace, destinationPlace, tripToEdit]);
 
     useEffect(() => {
         handleCalculateRoute();
@@ -237,7 +186,8 @@ const CreateTripForm: React.FC = () => {
         }
 
         setIsSubmitting(true);
-        const newTripData: NewTrip = {
+        
+        const payload = {
             origin: tripData.origin,
             destination: tripData.destination,
             cargo_details: tripData.cargo_details,
@@ -246,23 +196,20 @@ const CreateTripForm: React.FC = () => {
             distance_km: tripData.distance_km || null,
             estimated_drive_time_min: tripData.estimated_drive_time_min || null,
             price: tripData.price || null,
-            origin_city: originPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || null,
-            origin_province: originPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || null,
-            destination_city: destinationPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || null,
-            destination_province: destinationPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || null,
+            origin_city: originPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.origin_city || null,
+            origin_province: originPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || tripToEdit?.origin_province || null,
+            destination_city: destinationPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.destination_city || null,
+            destination_province: destinationPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || tripToEdit?.destination_province || null,
         };
 
-        const result = await context?.createTrip(newTripData);
+        const result = isEditMode
+            ? await context?.updateTrip(tripToEdit.id, payload)
+            : await context?.createTrip(payload);
+
         if (result) {
             setError(result.message);
         } else {
-            // Reset form on success
-            setTripData({});
-            setOriginPlace(null);
-            setDestinationPlace(null);
-            if(originRef.current) originRef.current.value = '';
-            if(destinationRef.current) destinationRef.current.value = '';
-            if(directionsRendererRef.current) directionsRendererRef.current.setDirections({routes: []});
+            onFinish();
         }
         setIsSubmitting(false);
     };
@@ -273,12 +220,12 @@ const CreateTripForm: React.FC = () => {
                 {apiKeyMissing && <p className="text-center text-slate-400 p-4 text-sm">El mapa está deshabilitado. Configura tu API Key.</p>}
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                <Input name="origin" label="Origen" placeholder="Calle, número, ciudad..." ref={originRef} onChange={handleInputChange} required />
-                <Input name="destination" label="Destino" placeholder="Calle, número, ciudad..." ref={destinationRef} onChange={handleInputChange} required />
-                <TextArea name="cargo_details" label="Detalles de la Carga" placeholder="Ej: 1 heladera, 2 cajas medianas" onChange={handleInputChange} required rows={2} />
+                 <TextArea name="cargo_details" label="Detalles de la Carga" placeholder="Ej: 1 heladera, 2 cajas medianas" onChange={handleInputChange} value={tripData.cargo_details || ''} required rows={2} />
+                <Input name="origin" label="Origen" placeholder="Calle, número, ciudad..." ref={originRef} onChange={handleInputChange} required defaultValue={tripData.origin || ''} />
+                <Input name="destination" label="Destino" placeholder="Calle, número, ciudad..." ref={destinationRef} onChange={handleInputChange} required defaultValue={tripData.destination || ''} />
                 <div className="grid grid-cols-2 gap-4">
-                    <Input name="estimated_weight_kg" label="Peso (kg)" type="number" placeholder="Ej: 80" onChange={handleInputChange} required />
-                    <Input name="estimated_volume_m3" label="Volumen (m³)" type="number" step="0.1" placeholder="Ej: 1.5" onChange={handleInputChange} required />
+                    <Input name="estimated_weight_kg" label="Peso (kg)" type="number" placeholder="Ej: 80" onChange={handleInputChange} value={tripData.estimated_weight_kg?.toString() || ''} required />
+                    <Input name="estimated_volume_m3" label="Volumen (m³)" type="number" step="0.1" placeholder="Ej: 1.5" onChange={handleInputChange} value={tripData.estimated_volume_m3?.toString() || ''} required />
                 </div>
 
                 {isCalculatingRoute ? (
@@ -291,13 +238,16 @@ const CreateTripForm: React.FC = () => {
                     </div>
                 )}
                 {error && <p className="text-sm text-red-400 text-center animate-shake">{error}</p>}
-                <Button type="submit" isLoading={isSubmitting} className="w-full !mt-6 !py-3">Solicitar Flete</Button>
+                <div className="flex gap-2 !mt-6">
+                    {isEditMode && <Button type="button" variant="secondary" onClick={onFinish} className="w-full">Cancelar</Button>}
+                    <Button type="submit" isLoading={isSubmitting} className="w-full !py-3">{isEditMode ? 'Guardar Cambios' : 'Solicitar Flete'}</Button>
+                </div>
             </form>
         </Card>
     );
 };
 
-const TripCard: React.FC<{ trip: Trip }> = ({ trip }) => {
+const TripCard: React.FC<{ trip: Trip; onEdit: (trip: Trip) => void; onDelete: (tripId: number) => void; }> = ({ trip, onEdit, onDelete }) => {
     const context = useContext(AppContext);
 
     const getStatusStyles = (status: Trip['status']) => {
@@ -325,7 +275,15 @@ const TripCard: React.FC<{ trip: Trip }> = ({ trip }) => {
              <div className="border-t border-slate-800 my-4"></div>
              <div className="flex justify-between items-center">
                  <p className="text-lg font-bold text-green-400/90">${(trip.final_price ?? trip.price)?.toLocaleString()}</p>
-                 <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Ver Detalles</Button>
+                 <div className="flex gap-2">
+                    {trip.status === 'requested' && (
+                        <>
+                            <Button onClick={() => onEdit(trip)} size="sm" variant="ghost">Editar</Button>
+                            <Button onClick={() => onDelete(trip.id)} size="sm" variant="ghost" className="!text-red-400 hover:!bg-red-900/50">Eliminar</Button>
+                        </>
+                    )}
+                    <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Ver Detalles</Button>
+                 </div>
              </div>
         </Card>
     );
@@ -333,45 +291,60 @@ const TripCard: React.FC<{ trip: Trip }> = ({ trip }) => {
 
 const CustomerDashboard: React.FC = () => {
     const context = useContext(AppContext);
+    const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
     
     const userTrips = useMemo(() => {
         if (!context || !context.user) return [];
         return context.trips.filter(trip => trip.customer_id === context.user?.id);
     }, [context]);
 
+    const handleEdit = (trip: Trip) => setEditingTrip(trip);
+    const handleFinishEditing = () => setEditingTrip(null);
+    
+    const handleDelete = async (tripId: number) => {
+        if (window.confirm('¿Estás seguro de que quieres eliminar esta solicitud de flete?')) {
+            await context?.deleteTrip(tripId);
+        }
+    };
+
     if (!context) return <div className="p-8 text-center"><Spinner /></div>;
+
+    const formTitle = editingTrip ? 'Editar Viaje' : 'Crear Nuevo Viaje';
+    const showTripList = !editingTrip;
 
     return (
         <div className="container mx-auto p-4 md:p-8 animate-fadeSlideIn">
             <LocationPrompt />
             <div className="grid lg:grid-cols-3 gap-8 items-start">
                 <div className="lg:col-span-1 space-y-6">
-                    <SectionHeader>Crear Nuevo Viaje</SectionHeader>
-                    <CreateTripForm />
+                    <SectionHeader>{formTitle}</SectionHeader>
+                    <TripForm tripToEdit={editingTrip} onFinish={handleFinishEditing} />
                 </div>
-                <div className="lg:col-span-2 space-y-6">
-                    <SectionHeader>Mis Viajes</SectionHeader>
-                    {context.isDataLoading ? (
-                        <div className="space-y-4">
-                            <SkeletonCard />
-                            <SkeletonCard style={{animationDelay: '0.1s'}} />
-                        </div>
-                    ) : userTrips.length > 0 ? (
-                        <div className="space-y-4">
-                            {userTrips.map((trip, i) => (
-                                <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                    <TripCard trip={trip} />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card className="text-center py-12">
-                            <Icon type="truck" className="w-12 h-12 mx-auto text-slate-600 mb-4" />
-                            <h4 className="font-bold text-slate-200">Aún no has creado ningún viaje</h4>
-                            <p className="text-slate-400">Usa el formulario para solicitar tu primer flete.</p>
-                        </Card>
-                    )}
-                </div>
+                {showTripList && (
+                    <div className="lg:col-span-2 space-y-6">
+                        <SectionHeader>Mis Viajes</SectionHeader>
+                        {context.isDataLoading ? (
+                            <div className="space-y-4">
+                                <SkeletonCard />
+                                <SkeletonCard style={{animationDelay: '0.1s'}} />
+                            </div>
+                        ) : userTrips.length > 0 ? (
+                            <div className="space-y-4">
+                                {userTrips.map((trip, i) => (
+                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                        <TripCard trip={trip} onEdit={handleEdit} onDelete={handleDelete} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <Card className="text-center py-12">
+                                <Icon type="truck" className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+                                <h4 className="font-bold text-slate-200">Aún no has creado ningún viaje</h4>
+                                <p className="text-slate-400">Usa el formulario para solicitar tu primer flete.</p>
+                            </Card>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

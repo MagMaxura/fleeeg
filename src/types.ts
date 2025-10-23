@@ -215,6 +215,19 @@ export type Database = {
           status?: "pending" | "accepted" | "rejected" | "cancelled";
         };
       };
+      driver_trip_rejections: {
+        Row: {
+          id: number;
+          driver_id: string;
+          trip_id: number;
+          created_at: string;
+        };
+        Insert: {
+          driver_id: string;
+          trip_id: number;
+        };
+        Update: {}; // No updates needed for this table
+      };
     };
     Views: {
       [_ in never]: never;

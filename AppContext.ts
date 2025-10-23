@@ -1,4 +1,3 @@
-
 import React, { Dispatch, SetStateAction } from 'react';
 import type { 
     Profile, 
@@ -7,7 +6,8 @@ import type {
     Offer, 
     View, 
     NewTrip, 
-    SimpleAuthError 
+    SimpleAuthError,
+    TripUpdate
 } from './src/types.ts';
 
 // The shape of the global application context.
@@ -25,6 +25,9 @@ export interface AppContextType {
   updateUserProfile: (updatedProfileData: Partial<Profile>, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   logout: () => Promise<void>;
   createTrip: (tripData: NewTrip) => Promise<SimpleAuthError | null>;
+  updateTrip: (tripId: number, tripData: Partial<TripUpdate>) => Promise<SimpleAuthError | null>;
+  deleteTrip: (tripId: number) => Promise<SimpleAuthError | null>;
+  rejectTrip: (tripId: number) => Promise<SimpleAuthError | null>;
   placeOffer: (tripId: number, price: number, notes: string) => Promise<SimpleAuthError | null>;
   acceptOffer: (offerId: number) => Promise<void>;
   startTrip: (tripId: number) => Promise<void>;
