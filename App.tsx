@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -463,11 +464,24 @@ const App: React.FC = () => {
         driver_id: currentUser.id,
         trip_id: tripId,
     });
+    
+    // If there is an error...
     if (error) {
+        // Check if it's the specific "duplicate key" error (code 23505).
+        // This means the driver already rejected this trip. We can treat this as a success,
+        // as the desired state (trip is rejected) is already met.
+        if (error.code === '23505') {
+            console.warn(`Attempted to reject trip ${tripId} again. Treating as success.`);
+            return null; // No error to report to the UI.
+        }
+
+        // For any other error, log it and report it.
         console.error('Error object when rejecting trip:', error);
         const errorMessage = error.message || 'Ocurrió un error al rechazar el viaje. Por favor, inténtalo de nuevo.';
         return { name: 'DBError', message: errorMessage };
     }
+
+    // No error, success.
     return null;
   }, []);
 
