@@ -286,7 +286,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (!tripData.origin || !tripData.destination || !tripData.cargo_details || !tripData.estimated_weight_kg || !tripData.estimated_volume_m3 || !tripData.estimated_load_time_min || !tripData.estimated_unload_time_min) {
+        if (!tripData.origin || !tripData.destination || !tripData.cargo_details || !tripData.estimated_weight_kg || !tripData.estimated_volume_m3) {
             setError('Por favor, completa todos los campos.');
             return;
         }
@@ -362,10 +362,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 <div className="grid grid-cols-2 gap-4">
                     <Input name="estimated_weight_kg" label="Peso (kg)" type="number" placeholder="Ej: 80" onChange={handleInputChange} value={tripData.estimated_weight_kg?.toString() || ''} required />
                     <Input name="estimated_volume_m3" label="Volumen (m³)" type="number" step="0.1" placeholder="Ej: 1.5" onChange={handleInputChange} value={tripData.estimated_volume_m3?.toString() || ''} required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <Input name="estimated_load_time_min" label="Tiempo de Carga (min)" type="number" placeholder="Ej: 30" onChange={handleInputChange} value={tripData.estimated_load_time_min?.toString() || ''} required />
-                    <Input name="estimated_unload_time_min" label="Tiempo de Descarga (min)" type="number" placeholder="Ej: 30" onChange={handleInputChange} value={tripData.estimated_unload_time_min?.toString() || ''} required />
                 </div>
                 
                 <div className="space-y-3 rounded-lg bg-slate-900/50 p-4 border border-slate-700/80 !mt-6">
