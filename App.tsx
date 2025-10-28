@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -221,6 +214,20 @@ const App: React.FC = () => {
     };
   }, [handleSession]);
   
+  useEffect(() => {
+    // This effect runs once the initial session check is complete.
+    // It handles redirecting the user to the correct view based on their auth state.
+    if (!isDataLoading) {
+      if (user) {
+        // If a user is logged in, and they are on a view meant for logged-out users
+        // (like the initial splash screen or login page), redirect them to their dashboard.
+        if (['home', 'landing', 'login', 'onboarding', 'confirmEmail'].includes(view)) {
+          setView('dashboard');
+        }
+      }
+    }
+  }, [isDataLoading, user, view]);
+
   useEffect(() => {
     const tripsChannel = supabase
       .channel('trips-realtime')
@@ -459,13 +466,28 @@ const App: React.FC = () => {
         driver_id: null,
     };
 
-    const { error } = await supabase.from('trips').insert(tripToInsert);
+    // By adding .select().single(), we get the newly created row back from the database.
+    const { data: newTrip, error } = await supabase
+        .from('trips')
+        .insert(tripToInsert)
+        .select()
+        .single();
+
     if (error) {
       console.error(`Error creating trip: ${error.message}`, error);
       return { name: 'DBError', message: error.message };
     }
     
-    // Real-time subscription will handle UI update.
+    if (newTrip) {
+        // Optimistically update the local state immediately.
+        // This ensures the creating user sees their new trip without waiting for the realtime subscription.
+        setTrips(currentTrips => 
+            [newTrip as Trip, ...currentTrips].sort((a, b) => 
+                new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
+            )
+        );
+    }
+    
     return null;
   }, []);
   
