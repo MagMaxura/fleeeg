@@ -3,6 +3,8 @@
 
 
 
+
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 
@@ -789,7 +791,7 @@ const App: React.FC = () => {
                 <nav className="flex items-center gap-2 sm:gap-4">
                     {user ? (
                         <>
-                            <span className="text-slate-300 hidden sm:block">Hola, {user.full_name.split(' ')[0]}</span>
+                            <span className="text-slate-300 hidden sm:block">Hola, {(user.full_name || 'Usuario').split(' ')[0]}</span>
                             <Button onClick={() => setView('rankings')} variant="ghost" size="sm">Ranking</Button>
                             <Button onClick={() => setView('profile')} variant="ghost" size="sm">Mi Perfil</Button>
                             <Button onClick={logout} variant="secondary" size="sm" isLoading={isLoading}>Salir</Button>
