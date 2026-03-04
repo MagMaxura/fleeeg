@@ -7,6 +7,7 @@ import { AppContext } from '../../AppContext.ts';
 // FIX: Removed .ts extension for consistent module resolution.
 import type { Profile } from '../../src/types';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
+import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader';
 
 declare global {
     interface Window {
@@ -14,22 +15,7 @@ declare global {
     }
 }
 
-const loadScript = (src: string, id: string) => {
-    return new Promise<void>((resolve, reject) => {
-        if (document.getElementById(id)) {
-            resolve();
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = src;
-        script.id = id;
-        script.async = true;
-        script.defer = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`Script load error for ${src}`));
-        document.head.appendChild(script);
-    });
-};
+
 
 const ProfileView: React.FC = () => {
     const context = useContext(AppContext);
@@ -99,7 +85,7 @@ const ProfileView: React.FC = () => {
         }
         setApiKeyMissing(false);
 
-        loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
+        loadGoogleMapsAPI(apiKey)
             .then(() => initAutocomplete())
             .catch(err => console.error("Could not load Google Maps script", err));
     }, [initAutocomplete]);

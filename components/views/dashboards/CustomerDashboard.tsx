@@ -1,4 +1,5 @@
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
 import { AppContext } from '../../../AppContext.ts';
 import type { Trip, NewTrip } from '../../../src/types.ts';
 import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui.tsx';
@@ -10,7 +11,7 @@ declare global {
 }
 
 const SectionHeader: React.FC<{ children: React.ReactNode, className?: string, style?: React.CSSProperties }> = ({ children, className, style }) => (
-    <h3 className={`text-2xl font-bold mb-4 text-slate-100 border-b-2 border-slate-800/70 pb-2 ${className}`} style={style}>{children}</h3>
+    <h3 className={`text - 2xl font - bold mb - 4 text - slate - 100 border - b - 2 border - slate - 800 / 70 pb - 2 ${className} `} style={style}>{children}</h3>
 );
 
 const LocationPrompt: React.FC = () => {
@@ -247,20 +248,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             return;
         }
         setApiKeyMissing(false);
-        const scriptId = 'google-maps-script';
-        if (!document.getElementById(scriptId)) {
-            const script = document.createElement('script');
-            // Adding libraries=places,marker and loading=async and v=weekly
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&v=weekly&loading=async`;
-            script.id = scriptId;
-            script.async = true;
-            script.defer = true;
-            script.onload = () => initMapAndAutocompletes();
-            document.head.appendChild(script);
-        } else {
-            // Already loaded, just init
-            initMapAndAutocompletes();
-        }
+
+        loadGoogleMapsAPI(apiKey)
+            .then(() => initMapAndAutocompletes())
+            .catch((err: any) => console.error("Maps loader error", err));
+
     }, [initMapAndAutocompletes]);
 
     const calculatePrice = useCallback(() => {
@@ -414,6 +406,12 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             }
         }
         if (currentStep === 2) {
+            if (!tripData.distance_km) {
+                setError('No se ha podido calcular la ruta. Verifica el origen y destino.');
+                return false;
+            }
+        }
+        if (currentStep === 3) {
             if (!tripData.cargo_details || !tripData.estimated_weight_kg || !tripData.estimated_volume_m3) {
                 setError('Necesitamos los detalles, peso y volumen de la carga.');
                 return false;
@@ -508,28 +506,29 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     return (
         <Card className="!p-0 overflow-hidden">
             {/* Header / Map */}
-            <div className={`relative w-full ${currentStep === 1 ? 'h-48' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
+            <div className={`relative w-full ${currentStep === 1 ? 'h-48' : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
                 <div ref={mapRef} className={`w-full h-full ${apiKeyMissing ? 'hidden' : 'block'} opacity-60`}></div>
                 {apiKeyMissing && <div className="absolute inset-0 flex items-center justify-center p-4">
                     <p className="text-center text-slate-400 text-sm">Mapa deshabilitado (API Key faltante).</p>
                 </div>}
 
                 {/* Stepper Overlay */}
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6">
-                    <div className="flex justify-between items-end mb-2">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6 pointer-events-none">
+                    <div className="flex justify-between items-end mb-2 pointer-events-auto">
                         <h3 className="text-xl font-bold text-white shadow-sm">
                             {currentStep === 1 && "¿De dónde a dónde vamos?"}
-                            {currentStep === 2 && "¿Qué tenemos que llevar?"}
-                            {currentStep === 3 && "Ayuda en Origen"}
-                            {currentStep === 4 && "Ayuda en Destino"}
-                            {currentStep === 5 && "Resumen y Precio"}
+                            {currentStep === 2 && "Confirma tu ruta"}
+                            {currentStep === 3 && "¿Qué tenemos que llevar?"}
+                            {currentStep === 4 && "Ayuda en Origen"}
+                            {currentStep === 5 && "Ayuda en Destino"}
+                            {currentStep === 6 && "Resumen y Precio"}
                         </h3>
                         <span className="text-amber-400 font-bold text-sm bg-slate-900/80 px-2 py-1 rounded-md border border-amber-900 flex-shrink-0">
                             Paso {currentStep} de {totalSteps}
                         </span>
                     </div>
                     {/* Progress Bar */}
-                    <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700">
+                    <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700 pointer-events-auto">
                         <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-2.5 rounded-full transition-all duration-500 ease-out" style={{ width: progressWidth }}></div>
                     </div>
                 </div>
@@ -553,8 +552,38 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         </div>
                     )}
 
-                    {/* STEP 2: Cargo */}
+                    {/* STEP 2: Route Confirmation */}
                     {currentStep === 2 && (
+                        <div className="space-y-4 text-center pt-4">
+                            <h4 className="text-2xl font-bold text-slate-200">Revisa la Ruta Estimada</h4>
+                            <p className="text-sm text-slate-400 mb-6">Arriba en el mapa puedes ver el trazado aproximado para tu viaje.</p>
+                            {tripData.distance_km ? (
+                                <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-700 inline-block text-left w-full mt-4 max-w-sm">
+                                    <div className="flex gap-4 items-center mb-4">
+                                        <div className="bg-amber-500/20 p-3 rounded-full"><Icon type="map" className="w-6 h-6 text-amber-500" /></div>
+                                        <div>
+                                            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Distancia Total</p>
+                                            <p className="text-xl text-slate-200 font-bold">{tripData.distance_km.toFixed(1)} km</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4 items-center">
+                                        <div className="bg-sky-500/20 p-3 rounded-full"><Icon type="clock" className="w-6 h-6 text-sky-500" /></div>
+                                        <div>
+                                            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Tiempo en Movimiento</p>
+                                            <p className="text-xl text-slate-200 font-bold">{tripData.estimated_drive_time_min} min</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-rose-900/20 text-rose-300 p-4 rounded-lg inline-block w-full mt-2 border border-rose-800/50">
+                                    <p className="text-sm">Calculando ruta o falta información del origen/destino...</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* STEP 3: Cargo */}
+                    {currentStep === 3 && (
                         <div className="space-y-5">
                             <div className="bg-amber-900/20 border border-amber-800/50 p-3 rounded-lg flex gap-3 text-amber-200">
                                 <Icon type="weight" className="w-6 h-6 flex-shrink-0" />
@@ -602,8 +631,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         </div>
                     )}
 
-                    {/* STEP 3: Loading Help */}
-                    {currentStep === 3 && (
+                    {/* STEP 4: Loading Help */}
+                    {currentStep === 4 && (
                         <div className="space-y-6">
                             <div className="text-center py-4">
                                 <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-slate-700">
@@ -613,9 +642,9 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                                 <p className="text-slate-400 mb-8 max-w-sm mx-auto">Piensa en el momento de cargar todo al vehículo. ¿Vas a poder hacerlo por tu cuenta o vas a necesitar la fuerza bruta del fletero?</p>
                             </div>
 
-                            <label className={`flex items-center justify-between cursor-pointer p-4 rounded-xl border-2 transition-all duration-300 ${tripData.needs_loading_help ? 'bg-amber-900/20 border-amber-500/50' : 'bg-slate-900/50 border-slate-700 hover:border-slate-500'}`}>
+                            <label className={`flex items - center justify - between cursor - pointer p - 4 rounded - xl border - 2 transition - all duration - 300 ${tripData.needs_loading_help ? 'bg-amber-900/20 border-amber-500/50' : 'bg-slate-900/50 border-slate-700 hover:border-slate-500'} `}>
                                 <div>
-                                    <span className={`block font-bold ${tripData.needs_loading_help ? 'text-amber-400' : 'text-slate-200'}`}>¡Sí, necesito que el fletero me ayude a cargar!</span>
+                                    <span className={`block font - bold ${tripData.needs_loading_help ? 'text-amber-400' : 'text-slate-200'} `}>¡Sí, necesito que el fletero me ayude a cargar!</span>
                                     <span className="text-xs text-slate-400 mt-1 block">Es un trabajo en equipo. (+$10.000 pesitos)</span>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -625,8 +654,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         </div>
                     )}
 
-                    {/* STEP 4: Unloading Help */}
-                    {currentStep === 4 && (
+                    {/* STEP 5: Unloading Help */}
+                    {currentStep === 5 && (
                         <div className="space-y-6">
                             <div className="text-center py-4">
                                 <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-slate-700">
@@ -636,9 +665,9 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                                 <p className="text-slate-400 mb-8 max-w-sm mx-auto">¡Llegamos! Ahora hay que bajar todo. ¿Misma historia que en origen? ¿Te da una mano el fletero?</p>
                             </div>
 
-                            <label className={`flex items-center justify-between cursor-pointer p-4 rounded-xl border-2 transition-all duration-300 ${tripData.needs_unloading_help ? 'bg-amber-900/20 border-amber-500/50' : 'bg-slate-900/50 border-slate-700 hover:border-slate-500'}`}>
+                            <label className={`flex items - center justify - between cursor - pointer p - 4 rounded - xl border - 2 transition - all duration - 300 ${tripData.needs_unloading_help ? 'bg-amber-900/20 border-amber-500/50' : 'bg-slate-900/50 border-slate-700 hover:border-slate-500'} `}>
                                 <div>
-                                    <span className={`block font-bold ${tripData.needs_unloading_help ? 'text-amber-400' : 'text-slate-200'}`}>¡Sí, necesito bajar las cosas con su ayuda!</span>
+                                    <span className={`block font - bold ${tripData.needs_unloading_help ? 'text-amber-400' : 'text-slate-200'} `}>¡Sí, necesito bajar las cosas con su ayuda!</span>
                                     <span className="text-xs text-slate-400 mt-1 block">A bajar colchones se ha dicho. (+$10.000)</span>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -648,8 +677,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         </div>
                     )}
 
-                    {/* STEP 5: Extra Helpers & Summary */}
-                    {currentStep === 5 && (
+                    {/* STEP 6: Extra Helpers & Summary */}
+                    {currentStep === 6 && (
                         <div className="space-y-6">
 
                             <div className="bg-slate-900/80 p-5 rounded-xl border border-slate-700">
@@ -743,7 +772,7 @@ const TripCard: React.FC<{ trip: Trip; onEdit: (trip: Trip) => void; onDelete: (
                     <h4 className="font-bold text-slate-100">{trip.cargo_details}</h4>
                     <p className="text-sm text-slate-400">{trip.origin} &rarr; {trip.destination}</p>
                 </div>
-                <div className={`text-xs font-semibold uppercase px-2 py-1 rounded-md border ${getStatusStyles(trip.status)}`}>
+                <div className={`text - xs font - semibold uppercase px - 2 py - 1 rounded - md border ${getStatusStyles(trip.status)} `}>
                     {trip.status.replace('_', ' ')}
                 </div>
             </div>
@@ -804,20 +833,20 @@ const CustomerDashboard: React.FC = () => {
             <div className="flex border-b border-slate-800 mb-8 overflow-x-auto no-scrollbar">
                 <button
                     onClick={() => setActiveTab('form')}
-                    className={`flex items-center gap-2 py-4 px-6 font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${activeTab === 'form'
+                    className={`flex items - center gap - 2 py - 4 px - 6 font - bold transition - all duration - 300 border - b - 2 whitespace - nowrap ${activeTab === 'form'
                         ? 'text-amber-400 border-amber-400'
                         : 'text-slate-500 border-transparent hover:text-slate-300'
-                        }`}
+                        } `}
                 >
-                    <Icon type="plus" className={`w-5 h-5 ${activeTab === 'form' ? 'animate-pulse' : ''}`} />
+                    <Icon type="plus" className={`w - 5 h - 5 ${activeTab === 'form' ? 'animate-pulse' : ''} `} />
                     {editingTrip ? 'Editar Flete' : 'Solicitar Flete'}
                 </button>
                 <button
                     onClick={() => setActiveTab('list')}
-                    className={`flex items-center gap-2 py-4 px-6 font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${activeTab === 'list'
+                    className={`flex items - center gap - 2 py - 4 px - 6 font - bold transition - all duration - 300 border - b - 2 whitespace - nowrap ${activeTab === 'list'
                         ? 'text-amber-400 border-amber-400'
                         : 'text-slate-500 border-transparent hover:text-slate-300'
-                        }`}
+                        } `}
                 >
                     <Icon type="truck" className="w-5 h-5" />
                     Mis Viajes
@@ -844,7 +873,7 @@ const CustomerDashboard: React.FC = () => {
                         ) : userTrips.length > 0 ? (
                             <div className="space-y-4">
                                 {userTrips.map((trip, i) => (
-                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05} s` }}>
                                         <TripCard trip={trip} onEdit={handleEdit} onDelete={handleDelete} />
                                     </div>
                                 ))}
