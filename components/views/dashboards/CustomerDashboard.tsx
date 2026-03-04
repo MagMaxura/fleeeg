@@ -51,6 +51,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     // --- Stepper State ---
     const [currentStep, setCurrentStep] = useState(1);
+    const currentStepRef = useRef(currentStep);
+
+    useEffect(() => {
+        currentStepRef.current = currentStep;
+    }, [currentStep]);
     const totalSteps = 5;
 
     const [tripData, setTripData] = useState<Partial<NewTrip & {
@@ -203,6 +208,29 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             // Drag events
             originMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('origin', originMarkerRef.current.position));
             destinationMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('destination', destinationMarkerRef.current.position));
+
+            // Map click events
+            mapInstanceRef.current.addListener('click', (e: any) => {
+                if (currentStepRef.current !== 1) return;
+                const latLng = e.latLng;
+                const isOriginEmpty = !originRef.current?.value;
+                const isDestinationEmpty = !destinationRef.current?.value;
+                const activeElement = document.activeElement;
+
+                let target: 'origin' | 'destination' = 'origin';
+                if (activeElement === destinationRef.current || (!isOriginEmpty && isDestinationEmpty)) {
+                    target = 'destination';
+                }
+
+                const marker = target === 'origin' ? originMarkerRef.current : destinationMarkerRef.current;
+
+                if (marker) {
+                    marker.position = latLng;
+                    marker.map = mapInstanceRef.current;
+                }
+
+                handleMarkerDragEnd(target, latLng);
+            });
         }
 
         const autocompleteOptions = {
@@ -833,20 +861,20 @@ const CustomerDashboard: React.FC = () => {
             <div className="flex border-b border-slate-800 mb-8 overflow-x-auto no-scrollbar">
                 <button
                     onClick={() => setActiveTab('form')}
-                    className={`flex items - center gap - 2 py - 4 px - 6 font - bold transition - all duration - 300 border - b - 2 whitespace - nowrap ${activeTab === 'form'
+                    className={`flex items-center gap-2 py-4 px-6 font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${activeTab === 'form'
                         ? 'text-amber-400 border-amber-400'
                         : 'text-slate-500 border-transparent hover:text-slate-300'
-                        } `}
+                        }`}
                 >
-                    <Icon type="plus" className={`w - 5 h - 5 ${activeTab === 'form' ? 'animate-pulse' : ''} `} />
+                    <Icon type="plus" className={`w-5 h-5 ${activeTab === 'form' ? 'animate-pulse' : ''}`} />
                     {editingTrip ? 'Editar Flete' : 'Solicitar Flete'}
                 </button>
                 <button
                     onClick={() => setActiveTab('list')}
-                    className={`flex items - center gap - 2 py - 4 px - 6 font - bold transition - all duration - 300 border - b - 2 whitespace - nowrap ${activeTab === 'list'
+                    className={`flex items-center gap-2 py-4 px-6 font-bold transition-all duration-300 border-b-2 whitespace-nowrap ${activeTab === 'list'
                         ? 'text-amber-400 border-amber-400'
                         : 'text-slate-500 border-transparent hover:text-slate-300'
-                        } `}
+                        }`}
                 >
                     <Icon type="truck" className="w-5 h-5" />
                     Mis Viajes

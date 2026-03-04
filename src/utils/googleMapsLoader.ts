@@ -30,7 +30,14 @@ export const loadGoogleMapsAPI = (apiKey: string) => {
 
         // The snippet initializes importLibrary immediately synchronously.
         if (window.google?.maps?.importLibrary) {
-            resolve();
+            Promise.all([
+                window.google.maps.importLibrary("places"),
+                window.google.maps.importLibrary("marker"),
+                window.google.maps.importLibrary("routes"),
+                window.google.maps.importLibrary("geometry")
+            ]).then(() => {
+                resolve();
+            }).catch(reject);
         } else {
             reject(new Error("Failed to initialize importLibrary"));
         }
