@@ -34,6 +34,7 @@ export interface AppContextType {
   rejectTrip: (tripId: number) => Promise<SimpleAuthError | null>;
   placeOffer: (tripId: number, price: number, notes: string) => Promise<SimpleAuthError | null>;
   acceptOffer: (offerId: number) => Promise<void>;
+  loadTrip: (tripId: number) => Promise<void>;
   startTrip: (tripId: number) => Promise<void>;
   completeTrip: (tripId: number) => Promise<void>;
   processPayment: (tripId: number) => Promise<void>;

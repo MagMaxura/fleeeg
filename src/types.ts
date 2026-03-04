@@ -29,7 +29,7 @@ export type Database = {
           needs_unloading_help: boolean;
           number_of_helpers: number;
           price: number | null;
-          status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
+          status: "requested" | "accepted" | "loading" | "in_transit" | "completed" | "paid";
           start_time: string | null;
           final_duration_min: number | null;
           final_price: number | null;
@@ -57,7 +57,7 @@ export type Database = {
           needs_unloading_help?: boolean;
           number_of_helpers?: number;
           price?: number | null;
-          status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
+          status: "requested" | "accepted" | "loading" | "in_transit" | "completed" | "paid";
           scheduled_date?: string | null;
           cargo_photos?: string[];
         };
@@ -82,7 +82,7 @@ export type Database = {
           needs_unloading_help?: boolean;
           number_of_helpers?: number;
           price?: number | null;
-          status?: "requested" | "accepted" | "in_transit" | "completed" | "paid";
+          status?: "requested" | "accepted" | "loading" | "in_transit" | "completed" | "paid";
           start_time?: string | null;
           final_duration_min?: number | null;
           final_price?: number | null;

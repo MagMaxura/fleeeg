@@ -662,9 +662,18 @@ const App: React.FC = () => {
     // The real-time subscription will handle updating the UI for all users.
   }, [users]);
 
+  const loadTrip = useCallback<AppContextType['loadTrip']>(async (tripId) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'customer') return;
+
+    const updatePayload: TripUpdate = { status: 'loading' as const };
+    const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
+    if (error) console.error("Error loading trip:", error);
+  }, []);
+
   const startTrip = useCallback<AppContextType['startTrip']>(async (tripId) => {
     const currentUser = userRef.current;
-    if (!currentUser || currentUser.role !== 'driver') return;
+    if (!currentUser || currentUser.role !== 'customer') return;
 
     const updatePayload: TripUpdate = {
       status: 'in_transit' as const,
@@ -782,6 +791,7 @@ const App: React.FC = () => {
     rejectTrip,
     placeOffer,
     acceptOffer,
+    loadTrip,
     startTrip,
     completeTrip,
     processPayment,
@@ -798,7 +808,7 @@ const App: React.FC = () => {
     addRejectedTripId,
   }), [
     user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser,
-    updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, startTrip, completeTrip, processPayment,
+    updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, loadTrip, startTrip, completeTrip, processPayment,
     viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout,
     activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId
   ]);

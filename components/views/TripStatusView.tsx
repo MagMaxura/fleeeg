@@ -142,6 +142,67 @@ const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
     );
 };
 
+const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
+    const mapRef = useRef<HTMLDivElement>(null);
+    const mapInstanceRef = useRef<any>(null);
+    const markerRef = useRef<any>(null);
+    const [driverLocation, setDriverLocation] = useState<{ lat: number, lng: number } | null>(null);
+
+    useEffect(() => {
+        if (!mapRef.current || !window.google) return;
+
+        const map = new window.google.maps.Map(mapRef.current, {
+            center: { lat: -34.6037, lng: -58.3816 }, // default
+            zoom: 15,
+            mapId: "LIVE_TRACKING_MAP",
+            disableDefaultUI: true,
+        });
+        mapInstanceRef.current = map;
+
+        window.google.maps.importLibrary("marker").then(({ AdvancedMarkerElement }: any) => {
+            const pinIcon = document.createElement('div');
+            pinIcon.innerHTML = `<div style="background-color: #f59e0b; padding: 8px; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid white;"><svg style="width: 24px; height: 24px; color: white;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>`;
+            markerRef.current = new AdvancedMarkerElement({
+                map,
+                content: pinIcon,
+            });
+        });
+
+        const channel = supabase.channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } })
+            .on('broadcast', { event: 'location' }, (payload) => {
+                if (payload.payload) {
+                    const { lat, lng } = payload.payload as { lat: number, lng: number };
+                    setDriverLocation({ lat, lng });
+                    if (mapInstanceRef.current) {
+                        mapInstanceRef.current.panTo({ lat, lng });
+                    }
+                    if (markerRef.current) {
+                        markerRef.current.position = { lat, lng };
+                    }
+                }
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [trip.id]);
+
+    return (
+        <div className="mt-4 aspect-video bg-slate-900/50 rounded-lg overflow-hidden border-2 border-amber-500 relative shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+            <div ref={mapRef} className="w-full h-full"></div>
+            <div className="absolute top-4 left-4 bg-slate-900/90 text-amber-400 px-4 py-1.5 rounded-full text-sm font-bold border border-amber-500 flex items-center gap-3 backdrop-blur-md">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span> GPS DE FLETERO EN VIVO
+            </div>
+            {!driverLocation && (
+                <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center backdrop-blur-sm">
+                    <p className="text-slate-200 text-sm font-semibold animate-pulse flex items-center gap-2">
+                        <Spinner /> Esperando señal satelital...
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
     const context = useContext(AppContext);
     const user = context?.user;
@@ -355,12 +416,40 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
 
     const handleBack = () => context.setView('dashboard' as View);
 
-    const handleStartTrip = async () => await context.startTrip(trip.id);
     const handleCompleteTrip = async () => await context.completeTrip(trip.id);
+
+    useEffect(() => {
+        // Driver Tracking Broadcasting
+        if (user?.role === 'driver' && trip.status === 'in_transit') {
+            let watchId: number;
+
+            const channel = supabase.channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } });
+
+            if ('geolocation' in navigator) {
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        channel.send({
+                            type: 'broadcast',
+                            event: 'location',
+                            payload: { lat: latitude, lng: longitude }
+                        });
+                    },
+                    (error) => console.error("Error watching position:", error),
+                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                );
+            }
+            return () => {
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                supabase.removeChannel(channel);
+            };
+        }
+    }, [user?.role, trip.status, trip.id]);
 
     const statuses = [
         { key: 'requested' as TripStatus, label: 'Buscando Fletero' },
         { key: 'accepted' as TripStatus, label: 'Fletero Asignado' },
+        { key: 'loading' as TripStatus, label: 'Vehículo en Carga' },
         { key: 'in_transit' as TripStatus, label: 'En Viaje' },
         { key: 'completed' as TripStatus, label: 'Entregado' },
         { key: 'paid' as TripStatus, label: 'Pagado y Finalizado' },
@@ -436,7 +525,11 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                                 </div>
                             </div>
                             <div className="mt-6">
-                                <MapDisplay trip={trip} />
+                                {trip.status === 'in_transit' ? (
+                                    <LiveTrackingMap trip={trip} />
+                                ) : (
+                                    <MapDisplay trip={trip} />
+                                )}
                             </div>
                             {trip.status === 'completed' && trip.final_price && <p className="text-sm text-slate-400 mt-1">Precio acordado con el fletero.</p>}
 
@@ -577,12 +670,36 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                             </div>
                             <div className="mt-2 space-y-4">
                                 {trip.status === 'in_transit' && trip.start_time && <Stopwatch start_time={trip.start_time} />}
+
+                                {/* Customer Actions */}
+                                {user?.role === 'customer' && trip.status === 'accepted' && (
+                                    <Button onClick={() => context.loadTrip(trip.id)} className="w-full text-base animate-fadeSlideIn bg-sky-600 hover:bg-sky-500">
+                                        ¡Fletero en la puerta! Comenzar Carga
+                                    </Button>
+                                )}
+                                {user?.role === 'customer' && trip.status === 'loading' && (
+                                    <Button onClick={() => context.startTrip(trip.id)} className="w-full text-base animate-fadeSlideIn bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold">
+                                        Carga Finalizada: Iniciar Seguimiento GPS
+                                    </Button>
+                                )}
+
+                                {/* Driver Actions */}
                                 {user?.role === 'driver' && trip.status === 'accepted' && (
-                                    <Button onClick={handleStartTrip} className="w-full text-base animate-fadeSlideIn">Iniciar Viaje</Button>
+                                    <div className="text-center p-4 bg-amber-900/20 border-2 border-amber-800/50 rounded-xl text-amber-200 text-sm animate-fadeSlideIn">
+                                        Dirígete al origen. El cliente debe confirmar en su app para poner el estado "En Carga".
+                                    </div>
+                                )}
+                                {user?.role === 'driver' && trip.status === 'loading' && (
+                                    <div className="text-center p-4 bg-sky-900/20 border-2 border-sky-800/50 rounded-xl text-sky-200 text-sm animate-fadeSlideIn">
+                                        Cargando mercancía. Pide al cliente que presione "Carga Finalizada" para arrancar el GPS.
+                                    </div>
                                 )}
                                 {user?.role === 'driver' && trip.status === 'in_transit' && (
-                                    <Button onClick={handleCompleteTrip} className="w-full text-base animate-fadeSlideIn">Marcar como Entregado</Button>
+                                    <Button onClick={handleCompleteTrip} className="w-full bg-rose-600 hover:bg-rose-500 text-base animate-fadeSlideIn font-bold">
+                                        Llegué al Destino (Fin del Viaje)
+                                    </Button>
                                 )}
+
                                 {user?.role === 'customer' && trip.status === 'completed' && (
                                     <div className="animate-fadeSlideIn">
                                         {!preferenceId ? (

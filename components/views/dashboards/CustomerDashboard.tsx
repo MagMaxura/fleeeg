@@ -82,7 +82,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const originAutocompleteRef = useRef<any>(null);
     const destinationAutocompleteRef = useRef<any>(null);
     const mapInstanceRef = useRef<any>(null);
-    const directionsRendererRef = useRef<any>(null);
+    const polylineRef = useRef<any>(null);
+    const originMarkerRef = useRef<any>(null);
+    const destinationMarkerRef = useRef<any>(null);
+    const geocoderRef = useRef<any>(null);
 
     const [originPlace, setOriginPlace] = useState<any>(null);
     const [destinationPlace, setDestinationPlace] = useState<any>(null);
@@ -130,29 +133,75 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             if (destinationRef.current) destinationRef.current.value = '';
             setOriginPlace(null);
             setDestinationPlace(null);
-            if (directionsRendererRef.current) {
-                directionsRendererRef.current.setDirections({ routes: [] });
+            if (polylineRef.current) {
+                polylineRef.current.setPath([]);
             }
+            if (originMarkerRef.current) originMarkerRef.current.map = null;
+            if (destinationMarkerRef.current) destinationMarkerRef.current.map = null;
         }
     }, [tripToEdit, isEditMode]);
 
-    const initMapAndAutocompletes = useCallback(() => {
+    const handleMarkerDragEnd = useCallback((type: 'origin' | 'destination', position: any) => {
+        if (!geocoderRef.current) return;
+        geocoderRef.current.geocode({ location: position }, (results: any, status: any) => {
+            if (status === 'OK' && results[0]) {
+                const address = results[0].formatted_address;
+                const place = results[0];
+                if (type === 'origin') {
+                    if (originRef.current) originRef.current.value = address;
+                    setOriginPlace(place);
+                    handleInputChange({ target: { name: 'origin', value: address } } as any);
+                } else {
+                    if (destinationRef.current) destinationRef.current.value = address;
+                    setDestinationPlace(place);
+                    handleInputChange({ target: { name: 'destination', value: address } } as any);
+                }
+            }
+        });
+    }, []);
+
+    const initMapAndAutocompletes = useCallback(async () => {
         if (!window.google) return;
+
+        const { Map } = await window.google.maps.importLibrary("maps");
+        const { AdvancedMarkerElement } = await window.google.maps.importLibrary("marker");
+        const { Geocoder } = window.google.maps;
+
+        if (!geocoderRef.current) {
+            geocoderRef.current = new Geocoder();
+        }
 
         const mapOptions = {
             center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
             zoom: 4,
             disableDefaultUI: true,
-            styles: [/* Dark theme styles */]
+            mapId: 'DEMO_MAP_ID_FLEEEG', // Required for AdvancedMarkerElement
         };
 
         if (mapRef.current && !mapInstanceRef.current) {
-            mapInstanceRef.current = new window.google.maps.Map(mapRef.current, mapOptions);
-            directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+            mapInstanceRef.current = new Map(mapRef.current, mapOptions);
+            polylineRef.current = new window.google.maps.Polyline({
                 map: mapInstanceRef.current,
-                suppressMarkers: true,
-                polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4, strokeOpacity: 0.8 },
+                strokeColor: '#f59e0b',
+                strokeWeight: 4,
+                strokeOpacity: 0.8,
             });
+
+            // Init markers
+            originMarkerRef.current = new AdvancedMarkerElement({
+                map: null,
+                gmpDraggable: true,
+                title: "Origen"
+            });
+            destinationMarkerRef.current = new AdvancedMarkerElement({
+                map: null,
+                gmpDraggable: true,
+                title: "Destino"
+            });
+
+            // Drag events
+            originMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('origin', originMarkerRef.current.position));
+            destinationMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('destination', destinationMarkerRef.current.position));
         }
 
         const autocompleteOptions = {
@@ -163,7 +212,14 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         if (originRef.current && !originAutocompleteRef.current) {
             originAutocompleteRef.current = new window.google.maps.places.Autocomplete(originRef.current, autocompleteOptions);
             originAutocompleteRef.current.addListener('place_changed', () => {
-                setOriginPlace(originAutocompleteRef.current.getPlace());
+                const place = originAutocompleteRef.current.getPlace();
+                setOriginPlace(place);
+                if (place.geometry?.location) {
+                    originMarkerRef.current.position = place.geometry.location;
+                    originMarkerRef.current.map = mapInstanceRef.current;
+                    mapInstanceRef.current.panTo(place.geometry.location);
+                    mapInstanceRef.current.setZoom(13);
+                }
                 handleInputChange({ target: { name: 'origin', value: originRef.current?.value } } as any);
             });
         }
@@ -171,11 +227,18 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         if (destinationRef.current && !destinationAutocompleteRef.current) {
             destinationAutocompleteRef.current = new window.google.maps.places.Autocomplete(destinationRef.current, autocompleteOptions);
             destinationAutocompleteRef.current.addListener('place_changed', () => {
-                setDestinationPlace(destinationAutocompleteRef.current.getPlace());
+                const place = destinationAutocompleteRef.current.getPlace();
+                setDestinationPlace(place);
+                if (place.geometry?.location) {
+                    destinationMarkerRef.current.position = place.geometry.location;
+                    destinationMarkerRef.current.map = mapInstanceRef.current;
+                    mapInstanceRef.current.panTo(place.geometry.location);
+                    mapInstanceRef.current.setZoom(13);
+                }
                 handleInputChange({ target: { name: 'destination', value: destinationRef.current?.value } } as any);
             });
         }
-    }, []);
+    }, [handleMarkerDragEnd]);
 
     useEffect(() => {
         const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
@@ -187,13 +250,15 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         const scriptId = 'google-maps-script';
         if (!document.getElementById(scriptId)) {
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+            // Adding libraries=places,marker and loading=async and v=weekly
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&v=weekly&loading=async`;
             script.id = scriptId;
             script.async = true;
             script.defer = true;
             script.onload = () => initMapAndAutocompletes();
             document.head.appendChild(script);
         } else {
+            // Already loaded, just init
             initMapAndAutocompletes();
         }
     }, [initMapAndAutocompletes]);
@@ -247,40 +312,68 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         calculatePrice
     ]);
 
-    const handleCalculateRoute = useCallback(() => {
-        const originValue = originPlace?.place_id;
-        const destinationValue = destinationPlace?.place_id;
+    const handleCalculateRoute = useCallback(async () => {
+        let originReq: any = null;
+        if (originPlace?.place_id) originReq = { placeId: originPlace.place_id };
+        else if (originPlace?.geometry?.location) originReq = { location: originPlace.geometry.location };
 
-        if (!originValue || !destinationValue || !window.google) {
+        let destReq: any = null;
+        if (destinationPlace?.place_id) destReq = { placeId: destinationPlace.place_id };
+        else if (destinationPlace?.geometry?.location) destReq = { location: destinationPlace.geometry.location };
+
+        if (!originReq || !destReq || !window.google) {
             if (tripData.price !== undefined) {
                 setTripData(prev => ({ ...prev, price: undefined }));
             }
+            if (polylineRef.current) polylineRef.current.setPath([]);
             return;
-        };
+        }
 
         setIsCalculatingRoute(true);
-        const directionsService = new window.google.maps.DirectionsService();
-        directionsService.route(
-            {
-                origin: { placeId: originValue },
-                destination: { placeId: destinationValue },
+        try {
+            const { Route } = await window.google.maps.importLibrary("routes") as any;
+            const { encoding } = await window.google.maps.importLibrary("geometry") as any;
+
+            const { routes } = await Route.computeRoutes({
+                origin: originReq,
+                destination: destReq,
                 travelMode: window.google.maps.TravelMode.DRIVING,
-            },
-            (result: any, status: any) => {
-                if (status === window.google.maps.DirectionsStatus.OK) {
-                    directionsRendererRef.current.setDirections(result);
-                    const route = result.routes[0].legs[0];
-                    const distanceKm = route.distance.value / 1000;
-                    const driveTimeMin = Math.round(route.duration.value / 60);
-                    // Set route data, which will trigger the price calculation useEffect
-                    setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
-                } else {
-                    setError('No se pudo calcular la ruta. Verifica las direcciones.');
-                    setTripData(prev => ({ ...prev, distance_km: undefined, estimated_drive_time_min: undefined }));
+                routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
+            });
+
+            if (routes && routes.length > 0) {
+                const route = routes[0];
+
+                if (polylineRef.current && route.polyline?.encodedPolyline) {
+                    const decodedPath = encoding.decodePath(route.polyline.encodedPolyline);
+                    polylineRef.current.setPath(decodedPath);
                 }
-                setIsCalculatingRoute(false);
+
+                // Note: The structure is slightly different for computeRoutes
+                const distanceKm = route.distanceMeters / 1000;
+                // duration is returned with an 's' at the end like "1200s", we parse it to get seconds
+                const driveTimeMin = Math.round(parseInt(route.duration) / 60);
+
+                setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
+
+                // Focus the map
+                if (mapInstanceRef.current && route.viewport?.low && route.viewport?.high) {
+                    const bounds = new window.google.maps.LatLngBounds();
+                    bounds.extend(new window.google.maps.LatLng(route.viewport.low.lat, route.viewport.low.lng));
+                    bounds.extend(new window.google.maps.LatLng(route.viewport.high.lat, route.viewport.high.lng));
+                    mapInstanceRef.current.fitBounds(bounds);
+                }
+            } else {
+                throw new Error('No routes returned');
             }
-        );
+        } catch (error) {
+            console.error('Error calculating route:', error);
+            setError('No se pudo calcular la ruta. Verifica las direcciones.');
+            if (polylineRef.current) polylineRef.current.setPath([]);
+            setTripData(prev => ({ ...prev, distance_km: undefined, estimated_drive_time_min: undefined }));
+        } finally {
+            setIsCalculatingRoute(false);
+        }
     }, [originPlace, destinationPlace]);
 
     useEffect(() => {
