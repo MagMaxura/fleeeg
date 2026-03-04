@@ -58,6 +58,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     }, [currentStep]);
     const totalSteps = 5;
 
+    // --- Dual Mode State for Step 1 ---
+    const [selectionMode, setSelectionMode] = useState<'text' | 'map'>('text');
+    const [mapPickingTarget, setMapPickingTarget] = useState<'origin' | 'destination'>('origin');
+
     const [tripData, setTripData] = useState<Partial<NewTrip & {
         estimated_drive_time_min?: number,
         distance_km?: number,
@@ -404,6 +408,16 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         }
     };
 
+    const handleConfirmMapPin = () => {
+        handleSetMarkerToCenter(mapPickingTarget);
+        if (mapPickingTarget === 'origin') {
+            setMapPickingTarget('destination');
+        } else {
+            // Both picked, switch back to text mode to review or proceed
+            setSelectionMode('text');
+        }
+    };
+
     const validateStep = () => {
         setError('');
         if (currentStep === 1) {
@@ -513,14 +527,24 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     return (
         <Card className="!p-0 overflow-hidden">
             {/* Header / Map */}
-            <div className={`relative w-full ${currentStep === 1 ? 'h-72 sm:h-96' : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
+            <div className={`relative w-full ${currentStep === 1 ? (selectionMode === 'text' ? 'h-64 sm:h-80' : 'h-[65vh]') : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
                 <div ref={mapRef} className={`w-full h-full ${apiKeyMissing ? 'hidden' : 'block'} opacity-60`}></div>
+
+                {/* Center Target Reticle for Map Mode */}
+                {currentStep === 1 && selectionMode === 'map' && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 flex flex-col items-center">
+                        <div className={`w-4 h-4 rounded-full border-4 ${mapPickingTarget === 'origin' ? 'border-amber-500' : 'border-emerald-500'} bg-white/50 animate-pulse`}></div>
+                        <div className="w-0.5 h-6 bg-slate-900/50 mt-1"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-900/50 mt-0.5"></div>
+                    </div>
+                )}
+
                 {apiKeyMissing && <div className="absolute inset-0 flex items-center justify-center p-4">
                     <p className="text-center text-slate-400 text-sm">Mapa deshabilitado (API Key faltante).</p>
                 </div>}
 
                 {/* Stepper Overlay */}
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6 pointer-events-none">
+                <div className={`absolute top-0 left-0 w-full h-full bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6 pointer-events-none transition-opacity duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="flex justify-between items-end mb-2 pointer-events-auto">
                         <h3 className="text-xl font-bold text-white shadow-sm">
                             {currentStep === 1 && "¿De dónde a dónde vamos?"}
@@ -539,14 +563,47 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         <div className="bg-gradient-to-r from-amber-600 to-amber-400 h-2.5 rounded-full transition-all duration-500 ease-out" style={{ width: progressWidth }}></div>
                     </div>
                 </div>
+
+                {/* Map Mode Floating Controls */}
+                {currentStep === 1 && selectionMode === 'map' && (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm pointer-events-auto z-20">
+                        <div className="bg-slate-900/90 backdrop-blur-md border outline outline-1 outline-white/10 p-5 rounded-2xl shadow-2xl flex flex-col items-center text-center gap-3">
+                            <h4 className="text-white font-bold text-lg">
+                                Fija tu {mapPickingTarget === 'origin' ? <span className="text-amber-400">Punto de Retiro</span> : <span className="text-emerald-400">Punto de Entrega</span>}
+                            </h4>
+                            <p className="text-slate-300 text-sm leading-tight">Mueve el mapa para ubicar el centro exacto donde debemos {mapPickingTarget === 'origin' ? 'buscar' : 'entregar'} tu carga.</p>
+                            <div className="flex gap-3 w-full mt-2">
+                                <Button type="button" variant="ghost" className="flex-1" onClick={() => setSelectionMode('text')}>Cancelar</Button>
+                                <Button type="button" onClick={handleConfirmMapPin} className={`flex-1 ${mapPickingTarget === 'origin' ? 'bg-amber-500 hover:bg-amber-400' : 'bg-emerald-500 hover:bg-emerald-400'} text-slate-900 font-bold`}>Continuar</Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            <div className="p-6">
+            <div className={`p-6 transition-all duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'h-0 overflow-hidden opacity-0 py-0' : 'opacity-100'}`}>
                 {/* Step Content */}
                 <div className="min-h-[300px] animate-fadeSlideIn">
                     {/* STEP 1: Origin & Destination */}
                     {currentStep === 1 && (
                         <div className="space-y-5">
+                            <div className="bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 flex mb-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionMode('text')}
+                                    className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 ${selectionMode === 'text' ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Escribir Dirección
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionMode('map')}
+                                    className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 ${selectionMode === 'map' ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Elegir en el Mapa
+                                </button>
+                            </div>
+
                             <div className="bg-sky-900/20 border border-sky-800/50 p-3 rounded-lg flex gap-3 text-sky-200">
                                 <Icon type="truck" className="w-6 h-6 flex-shrink-0" />
                                 <p className="text-sm">¡Hola! Para empezar a buscar al fletero ideal, dinos dónde empezamos y dónde terminamos este viaje. Si es para el futuro, ¡agéndalo!</p>
@@ -554,11 +611,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
                             <PlacePicker name="origin" label="Punto de Retiro (Origen)" placeholder="Ej: San Martín 123, CABA" ref={originRef} onPlaceSelect={handleOriginSelect} required defaultValue={tripData.origin || ''} />
                             <PlacePicker name="destination" label="Punto de Entrega (Destino)" placeholder="Ej: Belgrano 456, CABA" ref={destinationRef} onPlaceSelect={handleDestinationSelect} required defaultValue={tripData.destination || ''} />
-
-                            <div className="flex gap-3 pt-2">
-                                <Button type="button" variant="secondary" size="sm" onClick={() => handleSetMarkerToCenter('origin')} className="flex-1 text-xs sm:text-sm py-2"><Icon type="map-pin" className="inline w-3 h-3 mr-1" />Fijar Origen en Centro de Mapa</Button>
-                                <Button type="button" variant="secondary" size="sm" onClick={() => handleSetMarkerToCenter('destination')} className="flex-1 text-xs sm:text-sm py-2"><Icon type="map-pin" className="inline w-3 h-3 mr-1" />Fijar Destino en Centro de Mapa</Button>
-                            </div>
 
                             <Input name="scheduled_date" label="Fecha y Hora (Opcional - por defecto ahora)" type="datetime-local" onChange={handleInputChange} value={tripData.scheduled_date || ''} />
                         </div>
