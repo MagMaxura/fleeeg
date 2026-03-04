@@ -317,7 +317,7 @@ const App: React.FC = () => {
   }, []);
 
   // This helper now uses an Edge Function to upload files, bypassing client-side RLS.
-  const uploadImage = async (file: File, path: string, bucket: 'foto-perfil' | 'vehicle-photos'): Promise<string> => {
+  const uploadImage = async (file: File, path: string, bucket: 'foto-perfil' | 'vehicle-photos' | 'cargo-photos'): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('path', path);
@@ -328,10 +328,8 @@ const App: React.FC = () => {
     });
 
     if (error) {
-      // Log the full technical error for debugging purposes.
       console.error('Detailed error from supabase.functions.invoke("upload-proxy"):', error);
       const errorMessage = error.context?.error?.message || error.message;
-      // The user-facing message will be constructed from this thrown error.
       throw new Error(`Failed to communicate with the upload service. Details: ${errorMessage}`);
     }
 
@@ -453,7 +451,7 @@ const App: React.FC = () => {
     return null; // Success
   }, []);
 
-  const createTrip = useCallback<AppContextType['createTrip']>(async (tripData) => {
+  const createTrip = useCallback<AppContextType['createTrip']>(async (tripData, photoFiles) => {
     const currentUser = userRef.current;
     if (!currentUser || currentUser.role !== 'customer') {
       return { name: 'AuthError', message: 'El usuario no es un cliente.' };
@@ -462,9 +460,26 @@ const App: React.FC = () => {
     const tripToInsert: TripInsert = {
       ...tripData,
       customer_id: currentUser.id,
-      status: 'requested' as const,
+      status: 'requested',
       driver_id: null,
+      cargo_photos: [], // Initialize empty array
     };
+
+    // --- Handle Photo Uploads ---
+    if (photoFiles && photoFiles.length > 0) {
+      try {
+        const uploadPromises = photoFiles.map((file, index) => {
+          const path = `trips/${currentUser.id}/${Date.now()}_${index}_${file.name}`;
+          return uploadImage(file, path, 'cargo-photos');
+        });
+
+        const uploadedUrls = await Promise.all(uploadPromises);
+        tripToInsert.cargo_photos = uploadedUrls;
+      } catch (uploadError: any) {
+        console.error("Error uploading cargo photos:", uploadError);
+        return { name: 'UploadError', message: 'Error al subir las fotos de la carga. ' + (uploadError.message || '') };
+      }
+    }
 
     // By adding .select().single(), we get the newly created row back from the database.
     const { data: newTrip, error } = await supabase

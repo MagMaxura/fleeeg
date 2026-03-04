@@ -1,6 +1,6 @@
 import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
 import { AppContext } from '../../../AppContext.ts';
-import type { Trip, Driver, Offer } from '../../../src/types.ts';
+import type { Trip } from '../../../src/types.ts';
 import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
 import { supabase } from '../../../services/supabaseService.ts';
 
@@ -47,7 +47,7 @@ const LocationPrompt: React.FC = () => {
     };
 
     const handleDismiss = () => setIsVisible(false);
-    
+
     return (
         <Card className="mb-6 bg-slate-800/50 border-slate-700/70 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeSlideIn">
             <div className="flex items-center gap-4">
@@ -65,10 +65,10 @@ const LocationPrompt: React.FC = () => {
     );
 };
 
-const TripCard: React.FC<{ 
-    trip: Trip; 
-    isAvailable?: boolean; 
-    onAction?: () => void; 
+const TripCard: React.FC<{
+    trip: Trip;
+    isAvailable?: boolean;
+    onAction?: () => void;
     onReject: () => void;
 }> = ({ trip, isAvailable = false, onAction, onReject }) => {
     const context = useContext(AppContext);
@@ -114,19 +114,38 @@ const TripCard: React.FC<{
                 <div>
                     <h4 className="font-bold text-slate-100">{trip.cargo_details}</h4>
                     <p className="text-sm text-slate-400">{trip.origin} &rarr; {trip.destination}</p>
+                    {trip.scheduled_date && (
+                        <p className="text-sm font-medium text-sky-400 mt-1 flex items-center gap-1">
+                            <Icon type="time" className="w-4 h-4" />
+                            Programado para: {new Date(trip.scheduled_date).toLocaleString()}
+                        </p>
+                    )}
                 </div>
                 <p className="text-lg font-bold text-green-400/80 whitespace-nowrap">${trip.price?.toLocaleString()} <span className="text-xs text-slate-400 font-normal">Est.</span></p>
             </div>
-            
+
             {customer && isAvailable && (
-                 <div className="text-sm text-slate-400 mt-2">Solicitado por: {customer.full_name}</div>
+                <div className="text-sm text-slate-400 mt-2 flex items-center justify-between">
+                    <span>Solicitado por: {customer.full_name}</span>
+                </div>
             )}
-           
+
+            {/* Photos Preview */}
+            {trip.cargo_photos && trip.cargo_photos.length > 0 && (
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    {trip.cargo_photos.map((photoUrl, idx) => (
+                        <a key={idx} href={photoUrl} target="_blank" rel="noopener noreferrer" className="block relative h-16 w-16 flex-shrink-0 rounded-md overflow-hidden border border-slate-700 hover:border-amber-500 transition-colors">
+                            <img src={photoUrl} alt={`Cargo ${idx + 1}`} className="w-full h-full object-cover" />
+                        </a>
+                    ))}
+                </div>
+            )}
+
             <div className="border-t border-slate-800 my-4"></div>
 
             {isMakingOffer ? (
                 <div className="space-y-4 pt-2 animate-fadeSlideIn">
-                    <Input 
+                    <Input
                         label="Tu Precio Ofertado (ARS)"
                         type="number"
                         id={`offer-price-${trip.id}`}
@@ -135,7 +154,7 @@ const TripCard: React.FC<{
                         placeholder="Ej: 28000"
                         min="1"
                     />
-                    <TextArea 
+                    <TextArea
                         label="Notas para el Cliente (opcional)"
                         id={`offer-notes-${trip.id}`}
                         value={offerNotes}
@@ -152,18 +171,18 @@ const TripCard: React.FC<{
             ) : (
                 <>
                     <div className="flex justify-between items-center">
-                        <div className="flex gap-4 text-sm">
-                            <span className="flex items-center gap-1.5 text-slate-300" title="Distancia"><Icon type="distance" className="w-4 h-4 text-slate-400"/> {trip.distance_km?.toFixed(1)} km</span>
-                            <span className="flex items-center gap-1.5 text-slate-300" title="Peso"><Icon type="weight" className="w-4 h-4 text-slate-400"/> {trip.estimated_weight_kg} kg</span>
-                            <span className="flex items-center gap-1.5 text-slate-300" title="Volumen"><Icon type="volume" className="w-4 h-4 text-slate-400"/> {trip.estimated_volume_m3} m³</span>
+                        <div className="flex gap-4 text-sm flex-wrap">
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Distancia"><Icon type="distance" className="w-4 h-4 text-slate-400" /> {trip.distance_km?.toFixed(1)} km</span>
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Peso"><Icon type="weight" className="w-4 h-4 text-slate-400" /> {trip.estimated_weight_kg} kg</span>
+                            <span className="flex items-center gap-1.5 text-slate-300" title="Volumen"><Icon type="volume" className="w-4 h-4 text-slate-400" /> {trip.estimated_volume_m3} m³</span>
                         </div>
                         {isAvailable ? (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 ml-4 flex-shrink-0">
                                 <Button onClick={onReject} variant="ghost" size="sm" className="!text-red-400 hover:!bg-red-900/50" disabled={isLoading}>Rechazar</Button>
                                 <Button onClick={() => toggleOfferForm(true)} isLoading={isLoading} size="sm">Hacer Oferta</Button>
                             </div>
                         ) : (
-                            <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary">Gestionar</Button>
+                            <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="secondary" className="ml-4 flex-shrink-0">Gestionar</Button>
                         )}
                     </div>
                     {hasAdditionalServices && (
@@ -242,7 +261,7 @@ const DriverDashboard: React.FC = () => {
     const context = useContext(AppContext);
     const [activeTab, setActiveTab] = useState<'available' | 'offers' | 'active'>('available');
     const [activeFilters, setActiveFilters] = useState<{ cities: Set<string> }>({ cities: new Set() });
-    
+
     const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
     const [isLoadingAvailable, setIsLoadingAvailable] = useState(true);
 
@@ -250,7 +269,7 @@ const DriverDashboard: React.FC = () => {
         return <div className="p-8 text-center"><Spinner /></div>;
     }
     const { user, sessionRejectedTripIds, addRejectedTripId } = context;
-    
+
     const fetchAvailableTrips = useCallback(async () => {
         if (!user) return;
         setIsLoadingAvailable(true);
@@ -274,7 +293,7 @@ const DriverDashboard: React.FC = () => {
 
     const handleRejectTrip = useCallback(async (tripId: number) => {
         if (!context) return;
-    
+
         // CRITICAL FIX: Check if the trip has already been rejected in this session
         // before sending another request to the server. This prevents the 409 error.
         if (sessionRejectedTripIds.has(tripId)) {
@@ -283,21 +302,21 @@ const DriverDashboard: React.FC = () => {
 
         // Optimistic UI update: add to the global set of rejected IDs for this session.
         addRejectedTripId(tripId);
-    
+
         // In the background, persist this rejection to the database for future sessions.
         const result = await context.rejectTrip(tripId);
-    
+
         if (result) {
             // The trip is already hidden for this session, so no UI reversal is needed.
             // We just log the error for debugging.
             console.error('Error persisting trip rejection in background:', result);
         }
     }, [context, addRejectedTripId, sessionRejectedTripIds]);
-    
+
     // This performs client-side filtering on the RLS-bypassed data.
     const availableTrips = useMemo(() => {
         if (!rawAvailableTrips || !user || !context.offers) return [];
-        
+
         const myOfferedTripIds = new Set(
             context.offers.filter(o => o.driver_id === user.id).map(o => o.trip_id)
         );
@@ -312,7 +331,7 @@ const DriverDashboard: React.FC = () => {
             return true;
         });
     }, [rawAvailableTrips, user, context.offers, sessionRejectedTripIds]);
-    
+
     // --- Filtering Logic ---
     const availableCities = useMemo(() => {
         if (!availableTrips) return [];
@@ -353,55 +372,53 @@ const DriverDashboard: React.FC = () => {
     // --- Active Trips Logic ---
     const myActiveTrips = useMemo(() => {
         if (!context || !user) return [];
-        return context.trips.filter(trip => 
-            trip.driver_id === user.id && 
+        return context.trips.filter(trip =>
+            trip.driver_id === user.id &&
             ['accepted', 'in_transit', 'completed'].includes(trip.status)
         );
     }, [context.trips, user]);
 
     const TabButton: React.FC<{
-      tabId: 'available' | 'offers' | 'active';
-      count: number;
-      children: React.ReactNode;
+        tabId: 'available' | 'offers' | 'active';
+        count: number;
+        children: React.ReactNode;
     }> = ({ tabId, count, children }) => (
-      <button
-        onClick={() => setActiveTab(tabId)}
-        className={`flex items-center gap-2 py-3 px-2 sm:px-4 font-semibold transition-colors duration-200 border-b-2 text-sm sm:text-base ${
-          activeTab === tabId
-            ? 'text-amber-400 border-amber-400'
-            : 'text-slate-400 border-transparent hover:text-white'
-        }`}
-      >
-        {children}
-        <span
-          className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-            activeTab === tabId
-              ? 'bg-amber-400/20 text-amber-300'
-              : 'bg-slate-700 text-slate-300'
-          }`}
+        <button
+            onClick={() => setActiveTab(tabId)}
+            className={`flex items-center gap-2 py-3 px-2 sm:px-4 font-semibold transition-colors duration-200 border-b-2 text-sm sm:text-base ${activeTab === tabId
+                ? 'text-amber-400 border-amber-400'
+                : 'text-slate-400 border-transparent hover:text-white'
+                }`}
         >
-          {count}
-        </span>
-      </button>
+            {children}
+            <span
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tabId
+                    ? 'bg-amber-400/20 text-amber-300'
+                    : 'bg-slate-700 text-slate-300'
+                    }`}
+            >
+                {count}
+            </span>
+        </button>
     );
-    
+
     return (
         <div className="container mx-auto p-4 md:p-8">
             <LocationPrompt />
             <div className="grid lg:grid-cols-4 gap-8 items-start">
-                
+
                 {/* Left Sidebar for Filters */}
                 <div className="lg:col-span-1">
-                     {activeTab === 'available' && (
+                    {activeTab === 'available' && (
                         <FilterSidebar
                             cities={availableCities}
                             activeFilters={activeFilters}
                             onFilterChange={handleFilterChange}
                             onClearFilters={clearFilters}
                         />
-                     )}
+                    )}
                 </div>
-                
+
                 {/* Main Content Area */}
                 <div className="lg:col-span-3">
                     {/* Tab Navigation */}
@@ -428,14 +445,14 @@ const DriverDashboard: React.FC = () => {
                                     </>
                                 ) : filteredTrips.length > 0 ? (
                                     filteredTrips.map((trip, i) => (
-                                    <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
-                                        <TripCard trip={trip} isAvailable onAction={fetchAvailableTrips} onReject={() => handleRejectTrip(trip.id)} />
-                                    </div>
+                                        <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>
+                                            <TripCard trip={trip} isAvailable onAction={fetchAvailableTrips} onReject={() => handleRejectTrip(trip.id)} />
+                                        </div>
                                     ))
                                 ) : (
                                     <p className="text-slate-400 text-center pt-8">
-                                        {availableTrips.length > 0 && activeFilters.cities.size > 0 
-                                            ? "No hay viajes que coincidan con tus filtros." 
+                                        {availableTrips.length > 0 && activeFilters.cities.size > 0
+                                            ? "No hay viajes que coincidan con tus filtros."
                                             : "No hay nuevas solicitudes de flete en este momento."
                                         }
                                     </p>
@@ -444,7 +461,7 @@ const DriverDashboard: React.FC = () => {
                         )}
 
                         {activeTab === 'offers' && (
-                           <>
+                            <>
                                 {myPendingOffers.length > 0 ? (
                                     myPendingOffers.map((offer, i) => {
                                         const trip = context?.trips.find(t => t.id === offer.trip_id);
@@ -473,9 +490,9 @@ const DriverDashboard: React.FC = () => {
                                 )}
                             </>
                         )}
-                        
+
                         {activeTab === 'active' && (
-                           <>
+                            <>
                                 {myActiveTrips.length > 0 ? (
                                     myActiveTrips.map((trip, i) => (
                                         <div key={trip.id} className="staggered-child" style={{ animationDelay: `${i * 0.05}s` }}>

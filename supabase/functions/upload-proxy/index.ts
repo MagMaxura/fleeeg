@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase URL or Anon Key is not defined in environment variables.');
+      throw new Error('Supabase URL or Anon Key is not defined in environment variables.');
     }
 
     const { data: { user }, error: userError } = await createClient(supabaseUrl, supabaseAnonKey)
@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Authentication failed: ' + (userError?.message || 'No user found'));
     }
     console.log(`[upload-proxy] User authenticated successfully. User ID: ${user.id}`);
-    
+
     // 2. Get file, path, and bucket from the multipart form data
     console.log('[upload-proxy] Step 2: Parsing FormData...');
     const formData = await req.formData();
@@ -64,22 +64,22 @@ Deno.serve(async (req: Request) => {
       throw new Error('File, path, or bucket not provided in form data.');
     }
     console.log(`[upload-proxy] FormData parsed. Bucket: "${bucket}", Path: "${path}", File: "${file.name}" (${file.size} bytes)`);
-    
+
     // 3. Security check: Ensure user is uploading to their own folder and using a valid bucket.
     console.log('[upload-proxy] Step 3: Performing security check...');
-    const allowedBuckets = ['foto-perfil', 'vehicle-photos'];
+    const allowedBuckets = ['foto-perfil', 'vehicle-photos', 'cargo-photos'];
     if (!allowedBuckets.includes(bucket)) {
-        console.error(`[upload-proxy] Security check failed. Invalid bucket specified: ${bucket}.`);
-        return new Response(JSON.stringify({ error: `Invalid bucket specified.` }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400, // Bad Request
-        });
+      console.error(`[upload-proxy] Security check failed. Invalid bucket specified: ${bucket}.`);
+      return new Response(JSON.stringify({ error: `Invalid bucket specified.` }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, // Bad Request
+      });
     }
 
     const pathParts = path.split('/');
     if (pathParts.length < 2 || pathParts[1] !== user.id) {
-       console.error(`[upload-proxy] Security check failed. User ${user.id} attempted to write to path ${path}.`);
-       return new Response(JSON.stringify({ error: `Unauthorized path. You can only upload to your own folder.` }), {
+      console.error(`[upload-proxy] Security check failed. User ${user.id} attempted to write to path ${path}.`);
+      return new Response(JSON.stringify({ error: `Unauthorized path. You can only upload to your own folder.` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 403, // Forbidden
       });
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
     // FIX: Replaced non-null assertion `!` with a proper check for the service role key.
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseServiceRoleKey) {
-        throw new Error('Supabase Service Role Key is not defined in environment variables.');
+      throw new Error('Supabase Service Role Key is not defined in environment variables.');
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     console.log('[upload-proxy] Admin client initialized.');
@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Could not get public URL for the uploaded file.');
     }
     console.log(`[upload-proxy] Public URL retrieved: ${urlData.publicUrl}`);
-    
+
     // 7. Return the public URL
     console.log('[upload-proxy] Step 7: Returning public URL to client.');
     return new Response(JSON.stringify({ publicUrl: urlData.publicUrl }), {
@@ -137,9 +137,9 @@ Deno.serve(async (req: Request) => {
     console.error('[upload-proxy] Full error object:', JSON.stringify(error, null, 2));
     console.error('[upload-proxy] Stack trace:', error.stack);
 
-    return new Response(JSON.stringify({ 
-        error: 'An internal server error occurred in the upload function.',
-        details: error.message 
+    return new Response(JSON.stringify({
+      error: 'An internal server error occurred in the upload function.',
+      details: error.message
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

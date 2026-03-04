@@ -1,16 +1,16 @@
 
 import React, { Dispatch, SetStateAction } from 'react';
 // FIX: Removed .ts extension for consistent module resolution.
-import type { 
-    Profile, 
-    Trip, 
-    Review, 
-    Offer, 
-    View, 
-    NewTrip, 
-    SimpleAuthError,
-    TripUpdate,
-    ProfileInsert
+import type {
+  Profile,
+  Trip,
+  Review,
+  Offer,
+  View,
+  NewTrip,
+  SimpleAuthError,
+  TripUpdate,
+  ProfileInsert
 } from './src/types';
 
 // The shape of the global application context.
@@ -28,7 +28,7 @@ export interface AppContextType {
   registerUser: (newUser: ProfileInsert, password: string, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   updateUserProfile: (updatedProfileData: Partial<Profile>, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   logout: () => Promise<void>;
-  createTrip: (tripData: NewTrip) => Promise<SimpleAuthError | null>;
+  createTrip: (tripData: NewTrip, photoFiles: File[]) => Promise<SimpleAuthError | null>;
   updateTrip: (tripId: number, tripData: Partial<TripUpdate>) => Promise<SimpleAuthError | null>;
   deleteTrip: (tripId: number) => Promise<SimpleAuthError | null>;
   rejectTrip: (tripId: number) => Promise<SimpleAuthError | null>;

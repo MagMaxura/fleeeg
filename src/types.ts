@@ -34,6 +34,8 @@ export type Database = {
           final_duration_min: number | null;
           final_price: number | null;
           created_at: string | null;
+          scheduled_date: string | null;
+          cargo_photos: string[];
         };
         Insert: {
           customer_id: string;
@@ -56,6 +58,8 @@ export type Database = {
           number_of_helpers?: number;
           price?: number | null;
           status: "requested" | "accepted" | "in_transit" | "completed" | "paid";
+          scheduled_date?: string | null;
+          cargo_photos?: string[];
         };
         Update: {
           customer_id?: string;
@@ -82,6 +86,8 @@ export type Database = {
           start_time?: string | null;
           final_duration_min?: number | null;
           final_price?: number | null;
+          scheduled_date?: string | null;
+          cargo_photos?: string[];
         };
       };
       profiles: {
@@ -113,32 +119,32 @@ export type Database = {
           } | null;
         };
         Insert: {
-            // FIX: Made id and email optional as they are handled by a database trigger
-            // upon user creation in `auth.users`, not provided by the client.
-            id?: string;
-            email?: string;
-            full_name: string;
-            dni: string;
-            phone: string;
-            address: string;
-            city?: string | null;
-            province?: string | null;
-            // FIX: Changed role to be optional and nullable to align with Row/Update types and fix Supabase client type inference.
-            role?: "customer" | "driver" | null;
-            vehicle?: string | null;
-            vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
-            capacity_kg?: number | null;
-            capacity_m3?: number | null;
-            service_radius_km?: number | null;
-            photo_url?: string | null;
-            vehicle_photo_url?: string | null;
-            vehicle_photo_path?: string | null;
-            payment_info?: string | null;
-            filter_preferences?: {
-              cities?: string[];
-              max_weight_kg?: number;
-              max_volume_m3?: number;
-            } | null;
+          // FIX: Made id and email optional as they are handled by a database trigger
+          // upon user creation in `auth.users`, not provided by the client.
+          id?: string;
+          email?: string;
+          full_name: string;
+          dni: string;
+          phone: string;
+          address: string;
+          city?: string | null;
+          province?: string | null;
+          // FIX: Changed role to be optional and nullable to align with Row/Update types and fix Supabase client type inference.
+          role?: "customer" | "driver" | null;
+          vehicle?: string | null;
+          vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
+          capacity_kg?: number | null;
+          capacity_m3?: number | null;
+          service_radius_km?: number | null;
+          photo_url?: string | null;
+          vehicle_photo_url?: string | null;
+          vehicle_photo_path?: string | null;
+          payment_info?: string | null;
+          filter_preferences?: {
+            cities?: string[];
+            max_weight_kg?: number;
+            max_volume_m3?: number;
+          } | null;
         };
         Update: {
           email?: string;
@@ -279,7 +285,12 @@ export type OfferInsert = Database['public']['Tables']['offers']['Insert'];
 export type OfferUpdate = Database['public']['Tables']['offers']['Update'];
 
 // For creating new trips, before system-generated fields are added.
-export type NewTrip = Omit<Database['public']['Tables']['trips']['Insert'], 'customer_id' | 'driver_id' | 'status' | 'estimated_load_time_min' | 'estimated_unload_time_min'>;
+export type NewTrip = Omit<Database['public']['Tables']['trips']['Insert'], 'customer_id' | 'driver_id' | 'status' | 'estimated_load_time_min' | 'estimated_unload_time_min'> &
+// Ensure these are explicitly available for the UI form state, even if optional in Insert
+{
+  scheduled_date?: string | null;
+  cargo_photos?: string[];
+};
 
 
 // --- Role-specific Types for clarity and type narrowing ---
