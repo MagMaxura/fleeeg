@@ -304,7 +304,12 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 destination: { location: { latLng: destReq } },
                 travelMode: window.google.maps.TravelMode.DRIVING,
                 routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-                polylineEncoding: 'ENCODED_POLYLINE' // Explicitly request polyline format
+                fields: [
+                    'routes.distanceMeters',
+                    'routes.duration',
+                    'routes.polyline.encodedPolyline',
+                    'routes.viewport'
+                ]
             });
 
             if (routes && routes.length > 0) {
@@ -582,7 +587,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 )}
             </div>
 
-            <div className={`p-6 transition-opacity duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'hidden opacity-0' : 'block opacity-100'}`}>
+            <div className="p-6 transition-opacity duration-300" style={{ display: currentStep === 1 && selectionMode === 'map' ? 'none' : 'block', opacity: currentStep === 1 && selectionMode === 'map' ? 0 : 1 }}>
                 {/* Step Content */}
                 <div className="min-h-[300px] animate-fadeSlideIn">
                     {/* STEP 1: Origin & Destination */}
