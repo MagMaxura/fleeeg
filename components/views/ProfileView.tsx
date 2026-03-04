@@ -5,30 +5,30 @@ import React, { useState, useContext, useRef, useEffect, useCallback } from 'rea
 import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
 // FIX: Removed .ts extension for consistent module resolution.
-import type { Profile, VehicleType } from '../../src/types';
+import type { Profile } from '../../src/types';
 import { Button, Input, Card, Icon, Select } from '../ui.tsx';
 
 declare global {
-  interface Window {
-    google: any;
-  }
+    interface Window {
+        google: any;
+    }
 }
 
 const loadScript = (src: string, id: string) => {
-  return new Promise<void>((resolve, reject) => {
-    if (document.getElementById(id)) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.id = id;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Script load error for ${src}`));
-    document.head.appendChild(script);
-  });
+    return new Promise<void>((resolve, reject) => {
+        if (document.getElementById(id)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.id = id;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Script load error for ${src}`));
+        document.head.appendChild(script);
+    });
 };
 
 const ProfileView: React.FC = () => {
@@ -40,7 +40,7 @@ const ProfileView: React.FC = () => {
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [vehiclePhotoPreview, setVehiclePhotoPreview] = useState<string | null>(user?.vehicle_photo_url || null);
     const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
-    
+
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -64,10 +64,10 @@ const ProfileView: React.FC = () => {
         if (place && place.address_components) {
             const components = place.address_components;
             const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
-            
+
             const street_number = getComponent('street_number');
             const route = getComponent('route');
-            
+
             setFormState(prev => ({
                 ...prev,
                 address: `${route}${street_number ? ' ' + street_number : ''}`,
@@ -91,17 +91,17 @@ const ProfileView: React.FC = () => {
     useEffect(() => {
         // CRITICAL SECURITY FIX: The API key is now read from environment variables.
         const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-        
+
         if (!apiKey) {
             console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");
             setApiKeyMissing(true);
             return;
         }
         setApiKeyMissing(false);
-        
+
         loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
-        .then(() => initAutocomplete())
-        .catch(err => console.error("Could not load Google Maps script", err));
+            .then(() => initAutocomplete())
+            .catch(err => console.error("Could not load Google Maps script", err));
     }, [initAutocomplete]);
 
     // Cleanup
@@ -116,19 +116,19 @@ const ProfileView: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFormState(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
-    
+
     const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'vehicle') => {
-      if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        const previewUrl = URL.createObjectURL(file);
-        if (type === 'profile') {
-          setPhotoFile(file);
-          setPhotoPreview(previewUrl);
-        } else {
-          setVehiclePhotoFile(file);
-          setVehiclePhotoPreview(previewUrl);
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const previewUrl = URL.createObjectURL(file);
+            if (type === 'profile') {
+                setPhotoFile(file);
+                setPhotoPreview(previewUrl);
+            } else {
+                setVehiclePhotoFile(file);
+                setVehiclePhotoPreview(previewUrl);
+            }
         }
-      }
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -169,7 +169,7 @@ const ProfileView: React.FC = () => {
         }
 
         const authError = await context.updateUserProfile(updatedProfileData, photoFile, vehiclePhotoFile);
-        
+
         if (authError) {
             console.error("Error updating profile:", authError);
             // Improved error message handling to prevent showing '[object Object]'.
@@ -189,12 +189,12 @@ const ProfileView: React.FC = () => {
     const handleRoleSelect = (role: 'customer' | 'driver') => {
         setFormState(prev => ({ ...prev, role }));
     };
-    
+
     if (!user) {
         return <div className="p-8 text-center">Cargando perfil...</div>;
     }
-    
-    const vehicleTypes: { value: VehicleType; label: string }[] = [
+
+    const vehicleTypes: { value: string; label: string }[] = [
         { value: 'Furgoneta', label: 'Furgoneta' },
         { value: 'Furgón', label: 'Furgón' },
         { value: 'Pick UP', label: 'Pick UP' },
@@ -209,7 +209,7 @@ const ProfileView: React.FC = () => {
                     <h2 className="text-3xl font-bold mb-8 text-slate-100">Mi Perfil</h2>
 
                     {/* This block will show if the user's role isn't set yet. */}
-                    { !user.role && (
+                    {!user.role && (
                         <div className="mb-8 p-4 bg-slate-800/50 rounded-lg border border-amber-500/30 text-center animate-fadeSlideIn">
                             <h3 className="text-xl font-bold text-amber-300 mb-2">Completa tu Registro</h3>
                             <p className="text-slate-300 mb-4">Para continuar, por favor elige tu rol en Fletapp.</p>
@@ -225,33 +225,59 @@ const ProfileView: React.FC = () => {
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Profile Photo & Basic Info */}
+                        <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-800/50">
+                            <div className="relative group">
+                                {photoPreview ? (
+                                    <div className="relative">
+                                        <img src={photoPreview} alt="Profile" className="w-28 h-28 rounded-2xl object-cover bg-slate-800 border-2 border-amber-500/20 shadow-xl transition-transform group-hover:scale-105" />
+                                        <div className="absolute inset-0 rounded-2xl bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                            <Icon type="camera" className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-700 flex items-center justify-center shadow-xl group-hover:border-amber-500/30 transition-colors">
+                                        <svg viewBox="0 0 24 24" className="w-14 h-14 text-slate-400 opacity-50" fill="currentColor">
+                                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                        </svg>
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="absolute -bottom-2 -right-2 bg-amber-500 text-slate-950 p-2.5 rounded-xl shadow-lg hover:bg-amber-400 transition-all hover:scale-110 active:scale-95"
+                                >
+                                    <Icon type="camera" className="w-4 h-4" />
+                                </button>
+                                <input type="file" accept="image/*" ref={fileInputRef} onChange={e => handlePhotoChange(e, 'profile')} className="hidden" />
+                            </div>
+                            <div className="text-center sm:text-left">
+                                <h3 className="text-xl font-bold text-slate-100">{formState.full_name || 'Nuevo Usuario'}</h3>
+                                <p className="text-slate-400 text-sm">{user.email}</p>
+                                <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wider">
+                                    {user.role === 'driver' ? 'Fletero' : user.role === 'customer' ? 'Cliente' : 'Sin Rol'}
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid md:grid-cols-2 gap-6">
                             <Input name="full_name" label="Nombre Completo" value={formState.full_name || ''} onChange={handleInputChange} required />
                             <Input name="dni" label="DNI" value={formState.dni || ''} onChange={handleInputChange} required />
                         </div>
-                        <Input name="email" label="Correo Electrónico" type="email" value={formState.email || ''} onChange={handleInputChange} required disabled />
+
                         <div className="grid md:grid-cols-2 gap-6">
                             <Input name="phone" label="Teléfono" type="tel" value={formState.phone || ''} onChange={handleInputChange} required />
                             <div>
                                 <Input name="address" label="Dirección" value={formState.address || ''} onChange={handleInputChange} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
                                 {apiKeyMissing && (
-                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Configura tu API key en Vercel para activarlo.</p>
+                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado.</p>
                                 )}
                             </div>
                         </div>
-                         <div className="grid md:grid-cols-2 gap-6">
+
+                        <div className="grid md:grid-cols-2 gap-6">
                             <Input name="city" label="Ciudad" value={formState.city || ''} onChange={handleInputChange} />
                             <Input name="province" label="Provincia" value={formState.province || ''} onChange={handleInputChange} />
-                        </div>
-                        
-                        {/* Profile Photo */}
-                        <div className="flex items-center gap-6 pt-2">
-                            <img src={photoPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || '?')}&background=0f172a&color=fff&size=96`} alt="Profile preview" className="w-24 h-24 rounded-full object-cover bg-slate-800 border-2 border-slate-700"/>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">Foto de perfil</label>
-                                <input type="file" accept="image/*" ref={fileInputRef} onChange={e => handlePhotoChange(e, 'profile')} className="hidden" />
-                                <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>Cambiar Foto</Button>
-                            </div>
                         </div>
 
                         {(user.role === 'driver' || formState.role === 'driver') && (
@@ -261,7 +287,7 @@ const ProfileView: React.FC = () => {
 
                                 {/* Vehicle Photo */}
                                 <div className="flex items-center gap-6 pt-2">
-                                    <img src={vehiclePhotoPreview || 'https://via.placeholder.com/96x96.png/0f172a/fff?text=Vehículo'} alt="Vehicle preview" className="w-24 h-24 rounded-lg object-cover bg-slate-800 border-2 border-slate-700"/>
+                                    <img src={vehiclePhotoPreview || 'https://via.placeholder.com/96x96.png/0f172a/fff?text=Vehículo'} alt="Vehicle preview" className="w-24 h-24 rounded-lg object-cover bg-slate-800 border-2 border-slate-700" />
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-2">Foto del vehículo</label>
                                         <input type="file" accept="image/*" ref={vehicleFileInputRef} onChange={e => handlePhotoChange(e, 'vehicle')} className="hidden" />
@@ -279,13 +305,94 @@ const ProfileView: React.FC = () => {
                                 <Input name="payment_info" label="Alias o CBU para Pagos" value={formState.payment_info || ''} onChange={handleInputChange} required />
                             </>
                         )}
-                        
+
                         {error && <p className="text-sm text-red-400 text-center animate-shake">{error}</p>}
                         {success && <p className="text-sm text-green-400 text-center">{success}</p>}
-                        
+
                         <Button type="submit" isLoading={isLoading} className="w-full !mt-8 !py-4 text-lg">Guardar Cambios</Button>
                     </form>
                 </Card>
+
+                {user.role && (
+                    <div className="mt-8 space-y-8 pb-32">
+                        {user.role === 'customer' && (
+                            <section className="animate-fadeSlideIn" style={{ animationDelay: '0.1s' }}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xl font-bold text-slate-100">Nuevo Viaje</h3>
+                                    <Icon type="plus" className="text-amber-500 w-5 h-5" />
+                                </div>
+                                <Card className="border-dashed border-2 border-slate-700 hover:border-amber-500/50 transition-colors cursor-pointer group" onClick={() => context.setView('dashboard')}>
+                                    <div className="flex items-center gap-4 py-4">
+                                        <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                                            <Icon type="truck" className="text-amber-500 w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-slate-200">¿Necesitas un flete?</p>
+                                            <p className="text-sm text-slate-400">Solicita un transporte ahora desde tu dashboard.</p>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </section>
+                        )}
+
+                        <section className="animate-fadeSlideIn" style={{ animationDelay: '0.2s' }}>
+                            <h3 className="text-xl font-bold text-slate-100 mb-4">Mis Viajes</h3>
+                            <div className="space-y-4">
+                                {context.trips.filter(t => (user.role === 'customer' ? t.customer_id === user.id : t.driver_id === user.id)).length > 0 ? (
+                                    <div className="grid gap-4">
+                                        {/* Active Trips */}
+                                        {context.trips
+                                            .filter(t => (user.role === 'customer' ? t.customer_id === user.id : t.driver_id === user.id))
+                                            .filter(t => ['requested', 'accepted', 'in_transit'].includes(t.status))
+                                            .map(trip => (
+                                                <Card key={trip.id} className="border-l-4 border-amber-500">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="text-xs font-bold text-amber-500 uppercase mb-1">En curso</p>
+                                                            <p className="font-bold text-slate-200">{trip.cargo_details}</p>
+                                                            <p className="text-sm text-slate-400">{trip.origin} &rarr; {trip.destination}</p>
+                                                        </div>
+                                                        <Button size="sm" variant="secondary" onClick={() => context.viewTripDetails(trip.id)}>Ver</Button>
+                                                    </div>
+                                                </Card>
+                                            ))
+                                        }
+
+                                        <div className="pt-4 mt-2 border-t border-slate-800">
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Historial</h4>
+                                            {context.trips
+                                                .filter(t => (user.role === 'customer' ? t.customer_id === user.id : t.driver_id === user.id))
+                                                .filter(t => ['completed', 'paid'].includes(t.status))
+                                                .map(trip => (
+                                                    <div key={trip.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-900/30 border border-slate-800/50 mb-3 hover:bg-slate-900/50 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
+                                                                <Icon type="check" className="w-5 h-5 text-green-500" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-slate-300">{trip.cargo_details}</p>
+                                                                <p className="text-xs text-slate-500">{new Date(trip.created_at || '').toLocaleDateString('es-AR')}</p>
+                                                            </div>
+                                                        </div>
+                                                        <p className="font-bold text-slate-400">${(trip.final_price || trip.price || 0).toLocaleString()}</p>
+                                                    </div>
+                                                ))
+                                            }
+                                            {context.trips.filter(t => (user.role === 'customer' ? t.customer_id === user.id : t.driver_id === user.id)).filter(t => ['completed', 'paid'].includes(t.status)).length === 0 && (
+                                                <p className="text-center text-slate-600 py-4 italic">No tienes viajes finalizados aún.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 bg-slate-900/20 rounded-2xl border border-dashed border-slate-800">
+                                        <Icon type="truck" className="w-12 h-12 mx-auto text-slate-700 mb-4" />
+                                        <p className="text-slate-500 font-medium">No se encontraron viajes asociados a tu cuenta.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+                )}
             </div>
         </div>
     );
