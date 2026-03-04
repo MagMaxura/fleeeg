@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 // --- SPINNER ---
 export const Spinner: React.FC = () => (
@@ -16,22 +16,22 @@ export const Icon: React.FC<{ type: string; className?: string }> = ({ type, cla
     truck: <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125V14.25m-17.25 4.5h10.5a1.125 1.125 0 001.125-1.125V6.75a1.125 1.125 0 00-1.125-1.125H3.375A1.125 1.125 0 002.25 6.75v10.5a1.125 1.125 0 001.125 1.125z" />,
     star: <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />,
     fleteroPro: (
-        <>
-          <path d="M18.75 1.5H5.25C4.00736 1.5 3 2.50736 3 3.75V15.75C3 16.9926 4.00736 18 5.25 18H6.75C6.75 19.6569 8.09315 21 9.75 21C11.4069 21 12.75 19.6569 12.75 18H16.5C16.5 19.6569 17.8431 21 19.5 21C21.1569 21 22.5 19.6569 22.5 18H23.25C23.6642 18 24 17.6642 24 17.25V11.25L20.25 6L18.75 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          <path d="M3 12H18.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        </>
+      <>
+        <path d="M18.75 1.5H5.25C4.00736 1.5 3 2.50736 3 3.75V15.75C3 16.9926 4.00736 18 5.25 18H6.75C6.75 19.6569 8.09315 21 9.75 21C11.4069 21 12.75 19.6569 12.75 18H16.5C16.5 19.6569 17.8431 21 19.5 21C21.1569 21 22.5 19.6569 22.5 18H23.25C23.6642 18 24 17.6642 24 17.25V11.25L20.25 6L18.75 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M3 12H18.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </>
     ),
     clientePro: (
-        <>
-            <path d="M12.5 8.25C12.5 6.29822 10.9518 4.75 9 4.75C7.04822 4.75 5.5 6.29822 5.5 8.25C5.5 10.2018 7.04822 11.75 9 11.75C10.9518 11.75 12.5 10.2018 12.5 8.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <path d="M15.5 20.75V18.25C15.5 16.2982 13.9518 14.75 12 14.75H6C4.04822 14.75 2.5 16.2982 2.5 18.25V20.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <rect x="15" y="10" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <rect x="15" y="14" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <rect x="15" y="18" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        </>
+      <>
+        <path d="M12.5 8.25C12.5 6.29822 10.9518 4.75 9 4.75C7.04822 4.75 5.5 6.29822 5.5 8.25C5.5 10.2018 7.04822 11.75 9 11.75C10.9518 11.75 12.5 10.2018 12.5 8.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M15.5 20.75V18.25C15.5 16.2982 13.9518 14.75 12 14.75H6C4.04822 14.75 2.5 16.2982 2.5 18.25V20.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="15" y="10" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="15" y="14" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="15" y="18" width="8" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </>
     ),
     creditCard: <path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6.75 2.25h3.375" strokeLinecap="round" strokeLinejoin="round" />,
-    mercadoPago: <path d="M18.75 3.75H5.25C4.00736 3.75 3 4.75736 3 6V18C3 19.2426 4.00736 20.25 5.25 20.25H18.75C19.9926 20.25 21 19.2426 21 18V6C21 4.75736 19.9926 3.75 18.75 3.75ZM8.625 15.75L6 12L7.5 10.125L10.125 12.75L16.5 7.125L18 9L10.125 15.75H8.625Z" strokeLinecap="round" strokeLinejoin="round"/>,
+    mercadoPago: <path d="M18.75 3.75H5.25C4.00736 3.75 3 4.75736 3 6V18C3 19.2426 4.00736 20.25 5.25 20.25H18.75C19.9926 20.25 21 19.2426 21 18V6C21 4.75736 19.9926 3.75 18.75 3.75ZM8.625 15.75L6 12L7.5 10.125L10.125 12.75L16.5 7.125L18 9L10.125 15.75H8.625Z" strokeLinecap="round" strokeLinejoin="round" />,
     qrCode: <path d="M4 4h6v6H4V4zm8 0h6v6h-6V4zM4 14h6v6H4v-6zm8 3h2v2h-2v-2zm-3-3h2v2h-2v-2zm6 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3-3h2v2h-2v-2z" strokeLinecap="round" strokeLinejoin="round" />,
     checkCircle: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,
     mail: <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />,
@@ -57,31 +57,31 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ children, className, variant = 'primary', isLoading = false, size = 'default', ...props }, ref) => {
     const baseClasses = "relative overflow-hidden font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-px active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
-    
+
     const variantClasses = {
       primary: 'fletapp-gold-gradient text-slate-900 shadow-amber-900/30 hover:shadow-amber-800/50 focus-visible:ring-amber-400',
       secondary: 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-100 border border-slate-700 hover:border-slate-600 focus-visible:ring-slate-400',
       ghost: 'bg-transparent hover:bg-slate-800/50 text-slate-200 focus-visible:ring-slate-400 shadow-none hover:shadow-none'
     };
-    
+
     const sizeClasses = {
       default: 'text-base py-3 px-6',
       sm: 'text-sm py-1.5 px-3',
     };
-    
-    const createRipple = (event: React.MouseEvent<HTMLButtonElement>) => {
-        const button = event.currentTarget;
-        const circle = document.createElement("span");
-        const diameter = Math.max(button.clientWidth, button.clientHeight);
-        const radius = diameter / 2;
 
-        circle.style.width = circle.style.height = `${diameter}px`;
-        circle.style.left = `${event.clientX - button.offsetLeft - radius}px`;
-        circle.style.top = `${event.clientY - button.offsetTop - radius}px`;
-        circle.classList.add("absolute", "pointer-events-none", "rounded-full", "bg-white/30", "scale-0", "animate-[ripple_500ms_linear]");
-        
-        button.appendChild(circle);
-        setTimeout(() => circle.remove(), 500);
+    const createRipple = (event: React.MouseEvent<HTMLButtonElement>) => {
+      const button = event.currentTarget;
+      const circle = document.createElement("span");
+      const diameter = Math.max(button.clientWidth, button.clientHeight);
+      const radius = diameter / 2;
+
+      circle.style.width = circle.style.height = `${diameter}px`;
+      circle.style.left = `${event.clientX - button.offsetLeft - radius}px`;
+      circle.style.top = `${event.clientY - button.offsetTop - radius}px`;
+      circle.classList.add("absolute", "pointer-events-none", "rounded-full", "bg-white/30", "scale-0", "animate-[ripple_500ms_linear]");
+
+      button.appendChild(circle);
+      setTimeout(() => circle.remove(), 500);
     };
 
     return (
@@ -119,6 +119,86 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   }
 );
 Input.displayName = 'Input';
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'gmp-place-picker': any;
+    }
+  }
+}
+
+export interface PlacePickerProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  label?: string;
+  icon?: React.ReactNode;
+  onPlaceSelect?: (place: any, address: string) => void;
+  countryRestriction?: string;
+  placeTypes?: string[];
+}
+
+export const PlacePicker = React.forwardRef<any, PlacePickerProps>(
+  ({ label, id, icon, placeholder, defaultValue, onPlaceSelect, countryRestriction = 'AR', placeTypes = ['address'], ...props }, ref) => {
+    const pickerRef = useRef<any>(null);
+
+    React.useImperativeHandle(ref, () => ({
+      get value() { return pickerRef.current?.inputValue || ''; },
+      set value(v) { if (pickerRef.current) pickerRef.current.inputValue = v; }
+    }));
+
+    useEffect(() => {
+      if (defaultValue && pickerRef.current) {
+        pickerRef.current.inputValue = defaultValue as string;
+      }
+    }, [defaultValue]);
+
+    useEffect(() => {
+      const picker = pickerRef.current;
+      if (!picker) return;
+
+      const handlePlaceSelect = async (e: any) => {
+        const place = e.place;
+        if (!place) return;
+
+        // Emulate old Autocomplete behavior
+        await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location', 'addressComponents', 'id'] });
+        const legacyPlaceInfo = {
+          formatted_address: place.formattedAddress,
+          place_id: place.id,
+          geometry: { location: place.location },
+          address_components: place.addressComponents,
+          name: place.displayName
+        };
+
+        if (onPlaceSelect) {
+          onPlaceSelect(legacyPlaceInfo, picker.inputValue);
+        }
+      };
+
+      picker.addEventListener('gmp-placeselect', handlePlaceSelect);
+      return () => picker.removeEventListener('gmp-placeselect', handlePlaceSelect);
+    }, [onPlaceSelect]);
+
+    return (
+      <div className="relative">
+        {label && <label htmlFor={id} className="block text-sm font-medium text-slate-300 mb-2">{label}</label>}
+        <div className="relative">
+          {icon && <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 z-10">{icon}</div>}
+          <div className="place-picker-wrapper">
+            <gmp-place-picker
+              ref={pickerRef}
+              id={id}
+              placeholder={placeholder}
+              country={countryRestriction || 'AR'}
+              type={placeTypes.join(',')}
+              class={`gmp-picker-styled ${icon ? 'has-icon' : ''}`}
+            ></gmp-place-picker>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
+PlacePicker.displayName = 'PlacePicker';
 
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
@@ -191,7 +271,7 @@ export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children,
     const { left, top, width, height } = card.getBoundingClientRect();
     const x = e.clientX - left;
     const y = e.clientY - top;
-    
+
     card.style.setProperty('--mouse-x', `${x}px`);
     card.style.setProperty('--mouse-y', `${y}px`);
 
@@ -216,7 +296,7 @@ export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children,
       {...props}
     >
       <div className="absolute -inset-px rounded-2xl border border-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
-          background: `radial-gradient(400px at var(--mouse-x, 0) var(--mouse-y, 0), rgba(245, 158, 11, 0.15), transparent 80%)`,
+        background: `radial-gradient(400px at var(--mouse-x, 0) var(--mouse-y, 0), rgba(245, 158, 11, 0.15), transparent 80%)`,
       }}></div>
       <div className="relative z-10">
         {children}
@@ -280,32 +360,32 @@ export const StarRating: React.FC<StarRatingProps> = ({
 
 
 // --- SKELETON LOADER ---
-export const SkeletonCard: React.FC<{style?: React.CSSProperties}> = ({style}) => {
-    const Shimmer = () => (
-        <div className="absolute top-0 left-0 w-full h-full" style={{
-          background: `linear-gradient(110deg, transparent 20%, #0d162b 50%, transparent 80%)`,
-          animation: 'skeleton-shimmer 1.8s infinite linear'
-        }}></div>
-    );
+export const SkeletonCard: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
+  const Shimmer = () => (
+    <div className="absolute top-0 left-0 w-full h-full" style={{
+      background: `linear-gradient(110deg, transparent 20%, #0d162b 50%, transparent 80%)`,
+      animation: 'skeleton-shimmer 1.8s infinite linear'
+    }}></div>
+  );
 
-    return (
-        <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-800/60 shadow-2xl shadow-black/30 overflow-hidden relative" style={style}>
-            <div className="flex justify-between items-start">
-                <div className="space-y-3 flex-1">
-                    <div className="h-5 w-3/4 rounded bg-slate-800"></div>
-                </div>
-                <div className="h-5 w-20 rounded-full bg-slate-800"></div>
-            </div>
-            <div className="h-4 w-5/6 rounded bg-slate-800 mt-4"></div>
-            <div className="border-t border-slate-800 my-4"></div>
-            <div className="flex justify-between items-center">
-                <div className="flex gap-4">
-                    <div className="h-5 w-16 rounded bg-slate-800"></div>
-                    <div className="h-5 w-16 rounded bg-slate-800"></div>
-                </div>
-                <div className="h-8 w-24 rounded-lg bg-slate-800"></div>
-            </div>
-            <Shimmer />
+  return (
+    <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-800/60 shadow-2xl shadow-black/30 overflow-hidden relative" style={style}>
+      <div className="flex justify-between items-start">
+        <div className="space-y-3 flex-1">
+          <div className="h-5 w-3/4 rounded bg-slate-800"></div>
         </div>
-    );
+        <div className="h-5 w-20 rounded-full bg-slate-800"></div>
+      </div>
+      <div className="h-4 w-5/6 rounded bg-slate-800 mt-4"></div>
+      <div className="border-t border-slate-800 my-4"></div>
+      <div className="flex justify-between items-center">
+        <div className="flex gap-4">
+          <div className="h-5 w-16 rounded bg-slate-800"></div>
+          <div className="h-5 w-16 rounded bg-slate-800"></div>
+        </div>
+        <div className="h-8 w-24 rounded-lg bg-slate-800"></div>
+      </div>
+      <Shimmer />
+    </div>
+  );
 };

@@ -1,26 +1,8 @@
-
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
-import { Button, Input, Card, Icon, Select } from '../ui.tsx';
-
-
-const loadScript = (src: string, id: string) => {
-  return new Promise<void>((resolve, reject) => {
-    if (document.getElementById(id)) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.id = id;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Script load error for ${src}`));
-    document.head.appendChild(script);
-  });
-};
+import { Button, Input, Card, Icon, Select, PlacePicker } from '../ui.tsx';
+import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader.ts';
 
 const OnboardingView: React.FC = () => {
   const context = useContext(AppContext);
@@ -33,8 +15,7 @@ const OnboardingView: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const vehicleFileInputRef = useRef<HTMLInputElement>(null);
-  const addressRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<any>(null);
+  const addressRef = useRef<any>(null);
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,8 +31,7 @@ const OnboardingView: React.FC = () => {
     setFormState(prev => ({ ...prev, vehicle_type: vehicleType }));
   };
 
-  const handlePlaceSelect = useCallback(() => {
-    const place = autocompleteRef.current.getPlace();
+  const handlePlaceSelect = useCallback((place: any, addressString: string) => {
     if (place && place.address_components) {
       const components = place.address_components;
       const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
@@ -68,16 +48,6 @@ const OnboardingView: React.FC = () => {
     }
   }, []);
 
-  const initAutocomplete = useCallback(() => {
-    if (window.google && addressRef.current && !autocompleteRef.current) {
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(
-        addressRef.current,
-        { types: ['address'], componentRestrictions: { country: 'AR' }, fields: ['address_components'] }
-      );
-      autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
-    }
-  }, [handlePlaceSelect]);
-
 
   useEffect(() => {
     // CRITICAL SECURITY FIX: The API key is now read from environment variables.
@@ -93,20 +63,10 @@ const OnboardingView: React.FC = () => {
     setApiKeyMissing(false);
 
     if (role === 'driver' || role === 'customer') {
-      loadScript(`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`, 'google-maps-script')
-        .then(() => initAutocomplete())
-        .catch(err => console.error("Could not load Google Maps script", err));
+      loadGoogleMapsAPI(apiKey)
+        .catch((err: any) => console.error("Could not load Google Maps script", err));
     }
-  }, [role, initAutocomplete]);
-
-  // Cleanup effect to remove event listeners
-  useEffect(() => {
-    return () => {
-      if (autocompleteRef.current && window.google) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    }
-  }, []);
+  }, [role]);
 
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'vehicle') => {
@@ -275,7 +235,7 @@ const OnboardingView: React.FC = () => {
             <Input name="confirmPassword" label="Confirmar Contraseña" type="password" required onChange={handleInputChange} />
             <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} />
             <div>
-              <Input name="address" label="Dirección Registrada" required onChange={handleInputChange} ref={addressRef} value={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
+              <PlacePicker name="address" label="Dirección Registrada" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
               {apiKeyMissing && (
                 <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Configura tu API key en Vercel para activarlo.</p>
               )}

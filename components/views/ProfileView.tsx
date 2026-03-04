@@ -6,7 +6,7 @@ import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
 // FIX: Removed .ts extension for consistent module resolution.
 import type { Profile } from '../../src/types';
-import { Button, Input, Card, Icon, Select } from '../ui.tsx';
+import { Button, Input, Card, Icon, Select, PlacePicker } from '../ui.tsx';
 import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader';
 
 declare global {
@@ -34,8 +34,7 @@ const ProfileView: React.FC = () => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const vehicleFileInputRef = useRef<HTMLInputElement>(null);
-    const addressRef = useRef<HTMLInputElement>(null);
-    const autocompleteRef = useRef<any>(null);
+    const addressRef = useRef<any>(null);
 
 
     useEffect(() => {
@@ -45,8 +44,7 @@ const ProfileView: React.FC = () => {
         setVehiclePhotoPreview(user?.vehicle_photo_url || null);
     }, [user]);
 
-    const handlePlaceSelect = useCallback(() => {
-        const place = autocompleteRef.current.getPlace();
+    const handlePlaceSelect = useCallback((place: any, addressString: string) => {
         if (place && place.address_components) {
             const components = place.address_components;
             const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
@@ -63,17 +61,6 @@ const ProfileView: React.FC = () => {
         }
     }, []);
 
-    const initAutocomplete = useCallback(() => {
-        if (window.google && addressRef.current && !autocompleteRef.current) {
-            autocompleteRef.current = new window.google.maps.places.Autocomplete(
-                addressRef.current,
-                { types: ['address'], componentRestrictions: { country: 'AR' }, fields: ['address_components'] }
-            );
-            autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
-        }
-    }, [handlePlaceSelect]);
-
-
     useEffect(() => {
         // CRITICAL SECURITY FIX: The API key is now read from environment variables.
         const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
@@ -86,17 +73,7 @@ const ProfileView: React.FC = () => {
         setApiKeyMissing(false);
 
         loadGoogleMapsAPI(apiKey)
-            .then(() => initAutocomplete())
-            .catch(err => console.error("Could not load Google Maps script", err));
-    }, [initAutocomplete]);
-
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (autocompleteRef.current && window.google) {
-                window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-            }
-        }
+            .catch((err: any) => console.error("Could not load Google Maps script", err));
     }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -254,7 +231,7 @@ const ProfileView: React.FC = () => {
                         <div className="grid md:grid-cols-2 gap-6">
                             <Input name="phone" label="Teléfono" type="tel" value={formState.phone || ''} onChange={handleInputChange} required />
                             <div>
-                                <Input name="address" label="Dirección" value={formState.address || ''} onChange={handleInputChange} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
+                                <PlacePicker name="address" label="Dirección" defaultValue={formState.address || ''} onPlaceSelect={handlePlaceSelect} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
                                 {apiKeyMissing && (
                                     <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado.</p>
                                 )}

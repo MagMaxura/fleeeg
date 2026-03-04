@@ -2,7 +2,7 @@ import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } 
 import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
 import { AppContext } from '../../../AppContext.ts';
 import type { Trip, NewTrip } from '../../../src/types.ts';
-import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea } from '../../ui.tsx';
+import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea, PlacePicker } from '../../ui.tsx';
 
 declare global {
     interface Window {
@@ -83,10 +83,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
     const mapRef = useRef<HTMLDivElement>(null);
-    const originRef = useRef<HTMLInputElement>(null);
-    const destinationRef = useRef<HTMLInputElement>(null);
-    const originAutocompleteRef = useRef<any>(null);
-    const destinationAutocompleteRef = useRef<any>(null);
+    const originRef = useRef<any>(null);
+    const destinationRef = useRef<any>(null);
     const mapInstanceRef = useRef<any>(null);
     const polylineRef = useRef<any>(null);
     const originMarkerRef = useRef<any>(null);
@@ -233,40 +231,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             });
         }
 
-        const autocompleteOptions = {
-            componentRestrictions: { country: 'AR' },
-            fields: ['address_components', 'geometry', 'name', 'formatted_address', 'place_id'],
-        };
-
-        if (originRef.current && !originAutocompleteRef.current) {
-            originAutocompleteRef.current = new window.google.maps.places.Autocomplete(originRef.current, autocompleteOptions);
-            originAutocompleteRef.current.addListener('place_changed', () => {
-                const place = originAutocompleteRef.current.getPlace();
-                setOriginPlace(place);
-                if (place.geometry?.location) {
-                    originMarkerRef.current.position = place.geometry.location;
-                    originMarkerRef.current.map = mapInstanceRef.current;
-                    mapInstanceRef.current.panTo(place.geometry.location);
-                    mapInstanceRef.current.setZoom(13);
-                }
-                handleInputChange({ target: { name: 'origin', value: originRef.current?.value } } as any);
-            });
-        }
-
-        if (destinationRef.current && !destinationAutocompleteRef.current) {
-            destinationAutocompleteRef.current = new window.google.maps.places.Autocomplete(destinationRef.current, autocompleteOptions);
-            destinationAutocompleteRef.current.addListener('place_changed', () => {
-                const place = destinationAutocompleteRef.current.getPlace();
-                setDestinationPlace(place);
-                if (place.geometry?.location) {
-                    destinationMarkerRef.current.position = place.geometry.location;
-                    destinationMarkerRef.current.map = mapInstanceRef.current;
-                    mapInstanceRef.current.panTo(place.geometry.location);
-                    mapInstanceRef.current.setZoom(13);
-                }
-                handleInputChange({ target: { name: 'destination', value: destinationRef.current?.value } } as any);
-            });
-        }
+        // Autocompletes handled via PlacePicker in render
     }, [handleMarkerDragEnd]);
 
     useEffect(() => {
@@ -403,6 +368,36 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setTripData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
+
+    const handleOriginSelect = useCallback((place: any, inputValue: string) => {
+        setOriginPlace(place);
+        if (place.geometry?.location) {
+            if (originMarkerRef.current) {
+                originMarkerRef.current.position = place.geometry.location;
+                originMarkerRef.current.map = mapInstanceRef.current;
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.panTo(place.geometry.location);
+                    mapInstanceRef.current.setZoom(13);
+                }
+            }
+        }
+        handleInputChange({ target: { name: 'origin', value: inputValue } } as any);
+    }, [handleInputChange]);
+
+    const handleDestinationSelect = useCallback((place: any, inputValue: string) => {
+        setDestinationPlace(place);
+        if (place.geometry?.location) {
+            if (destinationMarkerRef.current) {
+                destinationMarkerRef.current.position = place.geometry.location;
+                destinationMarkerRef.current.map = mapInstanceRef.current;
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.panTo(place.geometry.location);
+                    mapInstanceRef.current.setZoom(13);
+                }
+            }
+        }
+        handleInputChange({ target: { name: 'destination', value: inputValue } } as any);
+    }, [handleInputChange]);
 
     const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTripData(prev => ({ ...prev, [e.target.name]: e.target.checked }));
@@ -573,8 +568,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                                 <p className="text-sm">¡Hola! Para empezar a buscar al fletero ideal, dinos dónde empezamos y dónde terminamos este viaje. Si es para el futuro, ¡agéndalo!</p>
                             </div>
 
-                            <Input name="origin" label="Punto de Retiro (Origen)" placeholder="Ej: San Martín 123, CABA" ref={originRef} onChange={handleInputChange} required defaultValue={tripData.origin || ''} />
-                            <Input name="destination" label="Punto de Entrega (Destino)" placeholder="Ej: Belgrano 456, CABA" ref={destinationRef} onChange={handleInputChange} required defaultValue={tripData.destination || ''} />
+                            <PlacePicker name="origin" label="Punto de Retiro (Origen)" placeholder="Ej: San Martín 123, CABA" ref={originRef} onPlaceSelect={handleOriginSelect} required defaultValue={tripData.origin || ''} />
+                            <PlacePicker name="destination" label="Punto de Entrega (Destino)" placeholder="Ej: Belgrano 456, CABA" ref={destinationRef} onPlaceSelect={handleDestinationSelect} required defaultValue={tripData.destination || ''} />
 
                             <Input name="scheduled_date" label="Fecha y Hora (Opcional - por defecto ahora)" type="datetime-local" onChange={handleInputChange} value={tripData.scheduled_date || ''} />
                         </div>
