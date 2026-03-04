@@ -300,10 +300,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             const { encoding } = await window.google.maps.importLibrary("geometry") as any;
 
             const { routes } = await Route.computeRoutes({
-                origin: originReq,
-                destination: destReq,
+                origin: { location: { latLng: originReq } },
+                destination: { location: { latLng: destReq } },
                 travelMode: window.google.maps.TravelMode.DRIVING,
                 routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
+                polylineEncoding: 'ENCODED_POLYLINE' // Explicitly request polyline format
             });
 
             if (routes && routes.length > 0) {
@@ -581,7 +582,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 )}
             </div>
 
-            <div className={`p-6 transition-all duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'h-0 overflow-hidden opacity-0 py-0' : 'opacity-100'}`}>
+            <div className={`p-6 transition-opacity duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'hidden opacity-0' : 'block opacity-100'}`}>
                 {/* Step Content */}
                 <div className="min-h-[300px] animate-fadeSlideIn">
                     {/* STEP 1: Origin & Destination */}
