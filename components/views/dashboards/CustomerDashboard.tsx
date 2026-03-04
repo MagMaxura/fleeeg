@@ -178,7 +178,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         const mapOptions = {
             center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
             zoom: 4,
-            disableDefaultUI: true,
+            disableDefaultUI: false,
             mapId: 'DEMO_MAP_ID_FLEEEG', // Required for AdvancedMarkerElement
         };
 
@@ -207,30 +207,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             originMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('origin', originMarkerRef.current.position));
             destinationMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('destination', destinationMarkerRef.current.position));
 
-            // Map click events
-            mapInstanceRef.current.addListener('click', (e: any) => {
-                if (currentStepRef.current !== 1) return;
-                const latLng = e.latLng;
-                const isOriginEmpty = !originRef.current?.value;
-                const isDestinationEmpty = !destinationRef.current?.value;
-                const activeElement = document.activeElement;
-
-                let target: 'origin' | 'destination' = 'origin';
-                if (activeElement === destinationRef.current || (!isOriginEmpty && isDestinationEmpty)) {
-                    target = 'destination';
-                }
-
-                const marker = target === 'origin' ? originMarkerRef.current : destinationMarkerRef.current;
-
-                if (marker) {
-                    marker.position = latLng;
-                    marker.map = mapInstanceRef.current;
-                }
-
-                handleMarkerDragEnd(target, latLng);
-            });
+            // Click event listener removed: users must use PlacePicker or explicit buttons to avoid accidental pin drops.
         }
-
         // Autocompletes handled via PlacePicker in render
     }, [handleMarkerDragEnd]);
 
@@ -299,12 +277,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const handleCalculateRoute = useCallback(async () => {
         let originReq: any = null;
-        if (originPlace?.place_id) originReq = { placeId: originPlace.place_id };
-        else if (originPlace?.geometry?.location) originReq = { location: originPlace.geometry.location };
+        if (originPlace?.geometry?.location) originReq = originPlace.geometry.location;
 
         let destReq: any = null;
-        if (destinationPlace?.place_id) destReq = { placeId: destinationPlace.place_id };
-        else if (destinationPlace?.geometry?.location) destReq = { location: destinationPlace.geometry.location };
+        if (destinationPlace?.geometry?.location) destReq = destinationPlace.geometry.location;
 
         if (!originReq || !destReq || !window.google) {
             if (tripData.price !== undefined) {
@@ -334,14 +310,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                     polylineRef.current.setPath(decodedPath);
                 }
 
-                // Note: The structure is slightly different for computeRoutes
                 const distanceKm = route.distanceMeters / 1000;
-                // duration is returned with an 's' at the end like "1200s", we parse it to get seconds
                 const driveTimeMin = Math.round(parseInt(route.duration) / 60);
 
                 setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
 
-                // Focus the map
                 if (mapInstanceRef.current && route.viewport?.low && route.viewport?.high) {
                     const bounds = new window.google.maps.LatLngBounds();
                     bounds.extend(new window.google.maps.LatLng(route.viewport.low.lat, route.viewport.low.lng));
@@ -359,7 +332,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         } finally {
             setIsCalculatingRoute(false);
         }
-    }, [originPlace, destinationPlace]);
+    }, [originPlace, destinationPlace, tripData.price]);
 
     useEffect(() => {
         handleCalculateRoute();
@@ -418,6 +391,17 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const removePhoto = (index: number) => {
         setCargoPhotos(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSetMarkerToCenter = (type: 'origin' | 'destination') => {
+        if (!mapInstanceRef.current) return;
+        const center = mapInstanceRef.current.getCenter();
+        const marker = type === 'origin' ? originMarkerRef.current : destinationMarkerRef.current;
+        if (marker) {
+            marker.position = center;
+            marker.map = mapInstanceRef.current;
+            handleMarkerDragEnd(type, center);
+        }
     };
 
     const validateStep = () => {
@@ -529,7 +513,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     return (
         <Card className="!p-0 overflow-hidden">
             {/* Header / Map */}
-            <div className={`relative w-full ${currentStep === 1 ? 'h-48' : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
+            <div className={`relative w-full ${currentStep === 1 ? 'h-72 sm:h-96' : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
                 <div ref={mapRef} className={`w-full h-full ${apiKeyMissing ? 'hidden' : 'block'} opacity-60`}></div>
                 {apiKeyMissing && <div className="absolute inset-0 flex items-center justify-center p-4">
                     <p className="text-center text-slate-400 text-sm">Mapa deshabilitado (API Key faltante).</p>
@@ -570,6 +554,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
                             <PlacePicker name="origin" label="Punto de Retiro (Origen)" placeholder="Ej: San Martín 123, CABA" ref={originRef} onPlaceSelect={handleOriginSelect} required defaultValue={tripData.origin || ''} />
                             <PlacePicker name="destination" label="Punto de Entrega (Destino)" placeholder="Ej: Belgrano 456, CABA" ref={destinationRef} onPlaceSelect={handleDestinationSelect} required defaultValue={tripData.destination || ''} />
+
+                            <div className="flex gap-3 pt-2">
+                                <Button type="button" variant="secondary" size="sm" onClick={() => handleSetMarkerToCenter('origin')} className="flex-1 text-xs sm:text-sm py-2"><Icon type="map-pin" className="inline w-3 h-3 mr-1" />Fijar Origen en Centro de Mapa</Button>
+                                <Button type="button" variant="secondary" size="sm" onClick={() => handleSetMarkerToCenter('destination')} className="flex-1 text-xs sm:text-sm py-2"><Icon type="map-pin" className="inline w-3 h-3 mr-1" />Fijar Destino en Centro de Mapa</Button>
+                            </div>
 
                             <Input name="scheduled_date" label="Fecha y Hora (Opcional - por defecto ahora)" type="datetime-local" onChange={handleInputChange} value={tripData.scheduled_date || ''} />
                         </div>
