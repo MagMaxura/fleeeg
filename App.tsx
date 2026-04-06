@@ -1,32 +1,36 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import type { AuthError, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 // Foundational types and context
-// FIX: Removed .ts extension for consistent module resolution.
-import type { UserRole, Driver, Customer, Trip, TripStatus, Profile, NewTrip, Review, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, ProfileInsert } from './src/types';
-import { AppContext } from './AppContext.ts';
-import type { AppContextType } from './AppContext.ts';
-import { supabase } from './services/supabaseService.ts';
+import type { Trip, Profile, ProfileUpdate, TripInsert, TripUpdate, ChatMessageInsert, Review, ReviewInsert, Offer, OfferInsert, OfferUpdate, View, Driver, NewTrip, TripStatus, PayoutRequest, PayoutRequestInsert, DriverLocation } from './src/types';
+import { AppContext } from './AppContext';
+import type { AppContextType } from './AppContext';
+import { supabase } from './services/supabaseService';
+import PushNotificationManager from './components/PushNotificationManager';
 
 // Services
-import { getDriverEta } from './services/geminiService.ts';
+import { getDriverEta } from './services/geminiService';
 
 // UI Components
 // FIX: Added Button import for use in the Header component.
-import { Button, Spinner, Icon } from './components/ui.tsx';
+import { Button, Spinner, Icon } from './components/ui';
 
 // View Components
-import HomeView from './components/views/HomeView.tsx';
-import LandingView from './components/views/LandingView.tsx';
-import OnboardingView from './components/views/OnboardingView.tsx';
-import LoginView from './components/views/LoginView.tsx';
-import DashboardView from './components/views/DashboardView.tsx';
-import RankingsView from './components/views/RankingsView.tsx';
-import TripStatusView from './components/views/TripStatusView.tsx';
-import DriverProfileView from './components/views/DriverProfileView.tsx';
-import ProfileView from './components/views/ProfileView.tsx';
-import ConfirmEmailView from './components/views/ConfirmEmailView.tsx';
+import HomeView from './components/views/HomeView';
+import LandingView from './components/views/LandingView';
+import OnboardingView from './components/views/OnboardingView';
+import LoginView from './components/views/LoginView';
+import DashboardView from './components/views/DashboardView';
+import RankingsView from './components/views/RankingsView';
+import TripStatusView from './components/views/TripStatusView';
+import DriverProfileView from './components/views/DriverProfileView';
+import ProfileView from './components/views/ProfileView';
+import ConfirmEmailView from './components/views/ConfirmEmailView';
+import WalletView from './components/views/dashboards/WalletView';
+import AdminDashboard from './components/views/dashboards/AdminDashboard';
+
+
 
 
 const App: React.FC = () => {
@@ -39,6 +43,8 @@ const App: React.FC = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [activeTripId, setActiveTripId] = useState<number | null>(null);
   const [activeDriverId, setActiveDriverId] = useState<string | null>(null);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [driverLocations, setDriverLocations] = useState<DriverLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
@@ -82,6 +88,63 @@ const App: React.FC = () => {
     setLocationPermissionStatus('checking');
     getLocation();
   }, [getLocation]);
+
+  // --- DRIVER TRACKING SYNC ---
+  useEffect(() => {
+    if (!user || user.role !== 'driver') return;
+
+    let watchId: number;
+    const updateLocation = async (coords: GeolocationCoordinates) => {
+        const { error } = await supabase
+            .from('driver_locations')
+            .upsert({
+                driver_id: user.id,
+                lat: coords.latitude,
+                lng: coords.longitude,
+                updated_at: new Date().toISOString(),
+                is_online: true
+            });
+            
+        if (error) console.error("Error updating global driver location:", error);
+    };
+
+    if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+            (position) => updateLocation(position.coords),
+            (error) => console.warn("Driver tracking error:", error),
+            { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
+        );
+    }
+
+    return () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [user?.id, user?.role]);
+
+  // Fetch driver locations for admin
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+
+    const fetchLocations = async () => {
+        const { data } = await supabase.from('driver_locations').select('*');
+        if (data) setDriverLocations(data);
+    };
+
+    fetchLocations();
+
+    const channel = supabase.channel('global_tracking')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, (payload) => {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                setDriverLocations(prev => {
+                    const filtered = prev.filter(l => l.driver_id !== (payload.new as DriverLocation).driver_id);
+                    return [...filtered, payload.new as DriverLocation];
+                });
+            }
+        })
+        .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     if (navigator.permissions) {
@@ -141,6 +204,10 @@ const App: React.FC = () => {
       });
       setOffers(sortedOffers);
     }
+
+    const { data: payoutData, error: payoutError } = await supabase.from('payout_requests').select('*').order('created_at', { ascending: false });
+    if (payoutError) console.error('Error fetching payouts:', payoutError);
+    else setPayoutRequests(payoutData || []);
   }, []);
 
   const handleSession = useCallback(async (session: Session | null) => {
@@ -593,7 +660,17 @@ const App: React.FC = () => {
     }
 
     // The real-time subscription will handle updating the UI for all users.
+    const trip = tripsRef.current.find(t => t.id === tripId);
+    if (trip) {
+      sendPushNotification(
+        trip.customer_id,
+        'Nueva oferta recibida',
+        `${currentUser.full_name} ha enviado una oferta de $${price} para tu viaje.`,
+        `/trip/${tripId}`
+      );
+    }
     return null;
+
   }, []);
 
   const acceptOffer = useCallback<AppContextType['acceptOffer']>(async (offerId) => {
@@ -660,6 +737,13 @@ const App: React.FC = () => {
     }
 
     // The real-time subscription will handle updating the UI for all users.
+    sendPushNotification(
+      offerToAccept.driver_id,
+      '¡Oferta aceptada!',
+      `${currentUser.full_name} ha aceptado tu oferta. ¡Buen viaje!`,
+      `/trip/${tripId}`
+    );
+
   }, [users]);
 
   const loadTrip = useCallback<AppContextType['loadTrip']>(async (tripId) => {
@@ -737,7 +821,21 @@ const App: React.FC = () => {
     const { error } = await supabase.from('chat_messages').insert(messageToInsert);
     if (error) {
       console.error("Error sending chat message:", error);
+    } else {
+      const trip = tripsRef.current.find(t => t.id === tripId);
+      if (trip) {
+        const recipientId = currentUser.id === trip.customer_id ? trip.driver_id : trip.customer_id;
+        if (recipientId) {
+          sendPushNotification(
+            recipientId,
+            `Mensaje de ${(currentUser.full_name || 'Usuario').split(' ')[0]}`,
+            content.length > 50 ? content.substring(0, 47) + '...' : content,
+            `/trip/${tripId}`
+          );
+        }
+      }
     }
+
   }, []);
 
   const submitReview = useCallback<AppContextType['submitReview']>(async (tripId, driverId, rating, comment) => {
@@ -759,6 +857,108 @@ const App: React.FC = () => {
     }
   }, [fetchAllData]);
 
+  const requestPayout = useCallback<AppContextType['requestPayout']>(async (amount, paymentInfo, tripIds) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'driver') {
+      return { name: 'AuthError', message: 'Solo los fleteros pueden solicitar cobros.' };
+    }
+
+    const payoutToInsert: PayoutRequestInsert = {
+      driver_id: currentUser.id,
+      amount,
+      payment_info: paymentInfo,
+      status: 'pending'
+    };
+
+    const { data: newPayout, error: payoutError } = await supabase
+      .from('payout_requests')
+      .insert(payoutToInsert)
+      .select()
+      .single();
+
+    if (payoutError) {
+      console.error("Error creating payout request:", payoutError);
+      return { name: 'DBError', message: payoutError.message };
+    }
+
+    if (newPayout) {
+      // Link the trips to this payout request
+      const { error: tripError } = await supabase
+        .from('trips')
+        .update({ payout_request_id: newPayout.id })
+        .in('id', tripIds);
+
+      if (tripError) {
+        console.error("Error linking trips to payout:", tripError);
+        // We don't return error here because the payout request was created successfully
+      }
+
+      setPayoutRequests(prev => [newPayout as PayoutRequest, ...prev]);
+      
+      // Refresh trips to show they are now "pending payout" (via the link)
+      const { data: tripsData } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
+      if (tripsData) setTrips(tripsData);
+    }
+
+    return null;
+  }, [setTrips, setPayoutRequests]);
+
+  const updatePayoutStatus = useCallback<AppContextType['updatePayoutStatus']>(async (payoutId, status, rejectionReason, externalReference) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'admin') {
+      return { name: 'AuthError', message: 'Acceso denegado. Se requieren permisos de administrador.' };
+    }
+
+    const updateData: Partial<PayoutRequest> = { status };
+    if (rejectionReason) updateData.rejection_reason = rejectionReason;
+    if (externalReference) updateData.external_reference = externalReference;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data: updatedPayout, error } = await supabase
+      .from('payout_requests')
+      .update(updateData)
+      .eq('id', payoutId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating payout status:", error);
+      return { name: 'DBError', message: error.message };
+    }
+
+    if (updatedPayout) {
+      setPayoutRequests(prev => prev.map(p => p.id === payoutId ? (updatedPayout as PayoutRequest) : p));
+      
+      // If status is paid, we might want to refresh trips associated as well (though they are already linked)
+      if (status === 'paid') {
+        const { data: tripsData } = await supabase.from('trips').select('*').order('created_at', { ascending: false });
+        if (tripsData) setTrips(tripsData);
+      }
+    }
+
+    return null;
+  }, [setTrips, setPayoutRequests]);
+
+  const updateUserRole = useCallback<AppContextType['updateUserRole']>(async (userId, newRole) => {
+    const currentUser = userRef.current;
+    if (!currentUser || currentUser.role !== 'admin') {
+      return { name: 'AuthError', message: 'Acceso denegado. Se requieren permisos de administrador.' };
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', userId);
+
+    if (error) {
+      console.error("Error updating user role:", error);
+      return { name: 'DBError', message: error.message };
+    }
+
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    return null;
+  }, []);
+
   const viewTripDetails = useCallback((tripId: number) => {
     setActiveTripId(tripId);
     setView('tripStatus');
@@ -772,6 +972,17 @@ const App: React.FC = () => {
   const addRejectedTripId = useCallback((tripId: number) => {
     setSessionRejectedTripIds(prev => new Set(prev).add(tripId));
   }, []);
+
+  const sendPushNotification = useCallback(async (userId: string, title: string, body: string, url: string = '/') => {
+    try {
+      await supabase.functions.invoke('send-push-notification', {
+        body: { userId, title, body, url }
+      });
+    } catch (err) {
+      console.error('Error triggering push notification:', err);
+    }
+  }, []);
+
 
   const appContextValue: AppContextType | null = useMemo(() => ({
     user,
@@ -806,11 +1017,17 @@ const App: React.FC = () => {
     requestLocationPermission,
     sessionRejectedTripIds,
     addRejectedTripId,
+    payoutRequests,
+    requestPayout,
+    updatePayoutStatus,
+    driverLocations,
+    updateUserRole
   }), [
     user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser,
     updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, loadTrip, startTrip, completeTrip, processPayment,
     viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout,
-    activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId
+    activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId,
+    payoutRequests, requestPayout, updatePayoutStatus, driverLocations, updateUserRole
   ]);
 
   const Header = () => {
@@ -906,12 +1123,15 @@ const App: React.FC = () => {
       case 'tripStatus': return user && activeTripId ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;
       case 'driverProfile': return user && activeDriverId ? <DriverProfileView /> : <RankingsView />;
       case 'profile': return user ? <ProfileView /> : <LoginView />;
+      case 'wallet': return user && user.role === 'driver' ? <WalletView /> : <DashboardView />;
+      case 'admin': return user && user.role === 'admin' ? <AdminDashboard /> : <LoginView />;
       default: return <HomeView />;
     }
   };
 
   return (
     <AppContext.Provider value={appContextValue}>
+      <PushNotificationManager userId={user?.id} />
       <div className="bg-slate-950 text-slate-100 min-h-screen font-sans fletapp-bg">
         <Header />
         <main className={view === 'home' ? '' : 'pt-20 sm:pt-24 pb-24 sm:pb-12'}>

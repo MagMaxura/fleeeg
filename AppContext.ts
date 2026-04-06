@@ -10,7 +10,9 @@ import type {
   NewTrip,
   SimpleAuthError,
   TripUpdate,
-  ProfileInsert
+  ProfileInsert,
+  PayoutRequest,
+  DriverLocation
 } from './src/types';
 
 // The shape of the global application context.
@@ -20,6 +22,7 @@ export interface AppContextType {
   trips: Trip[];
   reviews: Review[];
   offers: Offer[];
+  payoutRequests: PayoutRequest[];
   isDataLoading: boolean;
   view: View;
   setView: Dispatch<SetStateAction<View>>;
@@ -42,12 +45,16 @@ export interface AppContextType {
   viewDriverProfile: (driverId: string) => void;
   sendChatMessage: (tripId: number, content: string) => Promise<void>;
   submitReview: (tripId: number, driverId: string, rating: number, comment: string) => Promise<void>;
+  requestPayout: (amount: number, paymentInfo: string, tripIds: number[]) => Promise<SimpleAuthError | null>;
   activeDriverId: string | null;
   userLocation: GeolocationCoordinates | null;
   locationPermissionStatus: PermissionState | 'checking';
   requestLocationPermission: () => void;
   sessionRejectedTripIds: Set<number>;
   addRejectedTripId: (tripId: number) => void;
+  updatePayoutStatus: (payoutId: string, status: PayoutRequest['status'], rejectionReason?: string, externalReference?: string) => Promise<SimpleAuthError | null>;
+  driverLocations: DriverLocation[];
+  updateUserRole: (userId: string, newRole: Profile['role']) => Promise<SimpleAuthError | null>;
 }
 
 // Creating and exporting the context itself.

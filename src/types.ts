@@ -36,6 +36,7 @@ export type Database = {
           created_at: string | null;
           scheduled_date: string | null;
           cargo_photos: string[];
+          payout_request_id: string | null;
         };
         Insert: {
           customer_id: string;
@@ -60,6 +61,7 @@ export type Database = {
           status: "requested" | "accepted" | "loading" | "in_transit" | "completed" | "paid";
           scheduled_date?: string | null;
           cargo_photos?: string[];
+          payout_request_id?: string | null;
         };
         Update: {
           customer_id?: string;
@@ -88,6 +90,7 @@ export type Database = {
           final_price?: number | null;
           scheduled_date?: string | null;
           cargo_photos?: string[];
+          payout_request_id?: string | null;
         };
       };
       profiles: {
@@ -102,7 +105,7 @@ export type Database = {
           province: string | null;
           // FIX: Application logic (e.g., in DashboardView) handles cases where a user's
           // profile might be incomplete and lack a role. The type is updated to allow null to reflect this reality.
-          role: "customer" | "driver" | null;
+          role: "customer" | "driver" | "admin" | null;
           vehicle: string | null;
           vehicle_type: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
           capacity_kg: number | null;
@@ -130,7 +133,7 @@ export type Database = {
           city?: string | null;
           province?: string | null;
           // FIX: Changed role to be optional and nullable to align with Row/Update types and fix Supabase client type inference.
-          role?: "customer" | "driver" | null;
+          role?: "customer" | "driver" | "admin" | null;
           vehicle?: string | null;
           vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
           capacity_kg?: number | null;
@@ -155,7 +158,7 @@ export type Database = {
           city?: string | null;
           province?: string | null;
           // FIX: Updated to allow role to be nullable, consistent with the Row type.
-          role?: "customer" | "driver" | null;
+          role?: "customer" | "driver" | "admin" | null;
           vehicle?: string | null;
           vehicle_type?: "Furgoneta" | "Furgón" | "Pick UP" | "Camión ligero" | "Camión pesado" | null;
           capacity_kg?: number | null;
@@ -247,7 +250,88 @@ export type Database = {
         };
         Update: {}; // No updates needed for this table
       };
+      payout_requests: {
+        Row: {
+          id: string;
+          driver_id: string;
+          amount: number;
+          status: "pending" | "approved" | "rejected" | "paid";
+          payment_info: string | null;
+          external_reference: string | null;
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          driver_id: string;
+          amount: number;
+          status?: "pending" | "approved" | "rejected" | "paid";
+          payment_info?: string | null;
+          external_reference?: string | null;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount?: number;
+          status?: "pending" | "approved" | "rejected" | "paid";
+          payment_info?: string | null;
+          external_reference?: string | null;
+          rejection_reason?: string | null;
+          updated_at?: string;
+        };
+      };
+      driver_locations: {
+        Row: {
+          driver_id: string;
+          lat: number;
+          lng: number;
+          updated_at: string;
+          is_online: boolean;
+        };
+        Insert: {
+          driver_id: string;
+          lat: number;
+          lng: number;
+          updated_at?: string;
+          is_online?: boolean;
+        };
+        Update: {
+          driver_id?: string;
+          lat?: number;
+          lng?: number;
+          updated_at?: string;
+          is_online?: boolean;
+        };
+      };
+      push_subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh_key: string;
+          auth_key: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          endpoint: string;
+          p256dh_key: string;
+          auth_key: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          endpoint?: string;
+          p256dh_key?: string;
+          auth_key?: string;
+          created_at?: string;
+        };
+      };
     };
+
     Views: {
       [_ in never]: never;
     };
@@ -273,6 +357,8 @@ export type Trip = Database['public']['Tables']['trips']['Row'];
 export type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
 export type Review = Database['public']['Tables']['reviews']['Row'];
 export type Offer = Database['public']['Tables']['offers']['Row'];
+export type PayoutRequest = Database['public']['Tables']['payout_requests']['Row'];
+export type DriverLocation = Database['public']['Tables']['driver_locations']['Row'];
 
 // --- Granular Insert/Update Types for better type safety and dependency management ---
 export type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
@@ -283,6 +369,8 @@ export type ChatMessageInsert = Database['public']['Tables']['chat_messages']['I
 export type ReviewInsert = Database['public']['Tables']['reviews']['Insert'];
 export type OfferInsert = Database['public']['Tables']['offers']['Insert'];
 export type OfferUpdate = Database['public']['Tables']['offers']['Update'];
+export type PayoutRequestInsert = Database['public']['Tables']['payout_requests']['Insert'];
+export type PayoutRequestUpdate = Database['public']['Tables']['payout_requests']['Update'];
 
 // For creating new trips, before system-generated fields are added.
 export type NewTrip = Omit<Database['public']['Tables']['trips']['Insert'], 'customer_id' | 'driver_id' | 'status' | 'estimated_load_time_min' | 'estimated_unload_time_min'> &
@@ -308,7 +396,7 @@ export interface Driver extends Profile {
 // --- App Context Specific Types ---
 
 export type SortKey = 'trips' | 'kilograms' | 'volume' | 'kilometers' | 'rating';
-export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile' | 'confirmEmail';
+export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile' | 'confirmEmail' | 'wallet' | 'admin';
 
 // A simplified local error type to avoid a direct dependency on @supabase/supabase-js.
 export type SimpleAuthError = { name: string; message: string; };

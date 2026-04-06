@@ -110,6 +110,12 @@ Deno.serve(async (req: Request) => {
         pending: `${backUrlOrigin}?payment_status=pending&trip_id=${trip.id}`,
       },
       auto_return: 'approved', // Regresa automáticamente al sitio solo si el pago es aprobado.
+      
+      // CONFIGURACIÓN DE WEBHOOK (Notificación IPN)
+      // Esta URL será llamada por Mercado Pago de forma segura para confirmar el pago,
+      // incluso si el usuario cierra la ventana del navegador.
+      notification_url: `${supabaseUrl}/functions/v1/mercadopago-webhook`,
+      external_reference: trip.id.toString(), // Usamos el ID del viaje como referencia externa
     };
 
     // Realiza la llamada a la API de Mercado Pago para crear la preferencia.

@@ -256,10 +256,12 @@ const FilterSidebar: React.FC<{
 };
 
 
+import WalletView from './WalletView.tsx';
+
 // --- Main Driver Dashboard Component ---
 const DriverDashboard: React.FC = () => {
     const context = useContext(AppContext);
-    const [activeTab, setActiveTab] = useState<'available' | 'offers' | 'active'>('available');
+    const [activeTab, setActiveTab] = useState<'available' | 'offers' | 'active' | 'earnings'>('available');
     const [activeFilters, setActiveFilters] = useState<{ cities: Set<string> }>({ cities: new Set() });
 
     const [rawAvailableTrips, setRawAvailableTrips] = useState<Trip[] | null>(null);
@@ -379,8 +381,8 @@ const DriverDashboard: React.FC = () => {
     }, [context.trips, user]);
 
     const TabButton: React.FC<{
-        tabId: 'available' | 'offers' | 'active';
-        count: number;
+        tabId: 'available' | 'offers' | 'active' | 'earnings';
+        count?: number;
         children: React.ReactNode;
     }> = ({ tabId, count, children }) => (
         <button
@@ -391,14 +393,16 @@ const DriverDashboard: React.FC = () => {
                 }`}
         >
             {children}
-            <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tabId
-                    ? 'bg-amber-400/20 text-amber-300'
-                    : 'bg-slate-700 text-slate-300'
-                    }`}
-            >
-                {count}
-            </span>
+            {count !== undefined && (
+                <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tabId
+                        ? 'bg-amber-400/20 text-amber-300'
+                        : 'bg-slate-700 text-slate-300'
+                        }`}
+                >
+                    {count}
+                </span>
+            )}
         </button>
     );
 
@@ -431,6 +435,9 @@ const DriverDashboard: React.FC = () => {
                         </TabButton>
                         <TabButton tabId="active" count={myActiveTrips.length}>
                             Viajes Activos
+                        </TabButton>
+                        <TabButton tabId="earnings">
+                            Mi Billetera
                         </TabButton>
                     </div>
 
@@ -504,6 +511,8 @@ const DriverDashboard: React.FC = () => {
                                 )}
                             </>
                         )}
+
+                        {activeTab === 'earnings' && <WalletView />}
                     </div>
                 </div>
             </div>

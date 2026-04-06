@@ -4,6 +4,7 @@ import { AppContext } from '../../AppContext.ts';
 import { Spinner } from '../ui.tsx';
 import CustomerDashboard from './dashboards/CustomerDashboard.tsx';
 import DriverDashboard from './dashboards/DriverDashboard.tsx';
+import AdminDashboard from './dashboards/AdminDashboard.tsx';
 import type { View } from '../../src/types.ts';
 
 const DashboardView: React.FC = () => {
@@ -48,6 +49,10 @@ const DashboardView: React.FC = () => {
     
     if (user.role === 'driver') {
         return <DriverDashboard />;
+    }
+
+    if (user.role === 'admin') {
+        return <AdminDashboard />;
     }
 
     // Fallback de seguridad, aunque no debería alcanzarse con la nueva lógica.

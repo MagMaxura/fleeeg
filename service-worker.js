@@ -34,11 +34,11 @@ self.addEventListener('fetch', event => {
         if (cachedResponse) {
           return cachedResponse;
         }
-        
+
         // Si no está en la caché, la solicita a la red.
         // Clonamos el stream de la solicitud porque solo se puede consumir una vez.
         const fetchRequest = event.request.clone();
-        
+
         return fetch(fetchRequest).then(
           networkResponse => {
             // Comprueba si recibimos una respuesta válida
@@ -59,7 +59,7 @@ self.addEventListener('fetch', event => {
           }
         );
       })
-    );
+  );
 });
 
 // Limpia las cachés antiguas en la activación
@@ -75,5 +75,59 @@ self.addEventListener('activate', event => {
         })
       );
     })
+  );
+});
+
+// --- PUSH NOTIFICATIONS ---
+
+self.addEventListener('push', event => {
+  let data = { title: 'Fletapp', body: 'Tienes una nueva notificacin' };
+
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Fletapp', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icons/icon-192x192.png',
+    badge: '/badge-72x72.png', // Assuming we add a badge
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || '/'
+    },
+    actions: [
+      { action: 'open', title: 'Ver detalle' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+
+  const urlToOpen = event.notification.data.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(windowClients => {
+        // Si hay una ventana abierta, enfocarla
+        for (let i = 0; i < windowClients.length; i++) {
+          const client = windowClients[i];
+          if (client.url === urlToOpen && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Si no, abrir una nueva
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen);
+        }
+      })
   );
 });
