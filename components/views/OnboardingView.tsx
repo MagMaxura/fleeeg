@@ -125,6 +125,39 @@ const OnboardingView: React.FC = () => {
             return;
         }
     }
+
+    if (role === 'driver') {
+        if (step === 2) {
+            if (!idFrontFile) {
+                setError("Debes subir la foto del frente de tu DNI.");
+                return;
+            }
+            if (ocrSuccess !== true) {
+                setError("Primero debes escanear y validar los datos de tu DNI.");
+                return;
+            }
+        }
+        if (step === 3 && !idBackFile) {
+            setError("Debes subir la foto del dorso de tu DNI.");
+            return;
+        }
+        if (step === 4 && !licenseFile) {
+            setError("Debes subir la foto de tu Carnet de Conducir.");
+            return;
+        }
+        if (step === 5) {
+            if (!formState.full_name || !formState.phone) {
+                setError("Por favor completa tu nombre y teléfono.");
+                return;
+            }
+        }
+    } else {
+        if (step === 2 && (!formState.full_name || !formState.phone)) {
+            setError("Por favor completa tu nombre y teléfono.");
+            return;
+        }
+    }
+
     setStep(s => s + 1);
   };
 
@@ -283,7 +316,7 @@ const OnboardingView: React.FC = () => {
   );
 
   const StepIndicator = () => {
-    const totalSteps = role === 'driver' ? 4 : 2;
+    const totalSteps = role === 'driver' ? 6 : 2;
     return (
         <div className="flex justify-between items-center mb-10 px-4">
             {Array.from({ length: totalSteps }).map((_, i) => (
@@ -324,54 +357,77 @@ const OnboardingView: React.FC = () => {
                 </div>
             )}
 
-            {/* STEP 2 DRIVER: DOCS */}
+            {/* STEP 2 DRIVER: DNI FRONT + OCR */}
             {role === 'driver' && step === 2 && (
                 <div className="space-y-6 animate-fadeIn">
-                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6">
-                        <label className="block text-sm font-bold text-amber-400 mb-4 uppercase tracking-wider">Documentación Requerida</label>
-                        <div className="grid grid-cols-2 gap-4">
-                            <DocumentUpload label="DNI Frente" preview={idFrontPreview} inputRef={idFrontInputRef} onChange={e => handlePhotoChange(e, 'idFront')} />
-                            <DocumentUpload label="DNI Dorso" preview={idBackPreview} inputRef={idBackInputRef} onChange={e => handlePhotoChange(e, 'idBack')} />
-                        </div>
-                        <div className="mt-4">
-                            <DocumentUpload label="Carnet de Conducir" preview={licensePreview} inputRef={licenseInputRef} onChange={e => handlePhotoChange(e, 'license')} />
-                        </div>
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6 text-center">
+                        <label className="block text-sm font-bold text-amber-400 mb-6 uppercase tracking-wider">Documentación: DNI Frente</label>
+                        <DocumentUpload label="Pulsa para subir Frente del DNI" preview={idFrontPreview} inputRef={idFrontInputRef} onChange={e => handlePhotoChange(e, 'idFront')} />
                         
-                        <Button 
-                            type="button" 
-                            variant="secondary" 
-                            className={`w-full !mt-6 flex items-center justify-center gap-2 !py-3 ${ocrSuccess === true ? 'border-green-500 text-green-500' : ocrSuccess === false ? 'border-red-500 text-red-500' : 'border-amber-500/40 text-amber-400'}`}
-                            onClick={handleOcr}
-                            isLoading={isOcrLoading}
-                        >
-                            {isOcrLoading ? 'Escaneando...' : ocrSuccess === true ? '✓ DNI Escaneado' : ocrSuccess === false ? '⚠ Error al leer. Reintenta' : 'Escanear DNI para auto-completar'}
-                        </Button>
-                        {ocrSuccess === false && <p className="text-[10px] text-red-400 mt-2 text-center">Asegúrate de que la foto esté bien iluminada y nítida.</p>}
+                        <div className="mt-8">
+                            <Button 
+                                type="button" 
+                                variant="secondary" 
+                                className={`w-full flex items-center justify-center gap-2 !py-4 transition-all ${ocrSuccess === true ? 'border-green-500 text-green-500 bg-green-500/10' : ocrSuccess === false ? 'border-red-500 text-red-500 bg-red-500/10' : 'border-amber-500/50 text-amber-400'}`}
+                                onClick={handleOcr}
+                                isLoading={isOcrLoading}
+                                disabled={!idFrontFile}
+                            >
+                                {isOcrLoading ? 'Analizando...' : ocrSuccess === true ? '✓ Datos Validados' : ocrSuccess === false ? '⚠ Error de lectura. Intenta otra foto' : 'Escanear DNI'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* STEP 2 CUSTOMER / STEP 3 DRIVER: PROFILE */}
-            {((role === 'customer' && step === 2) || (role === 'driver' && step === 3)) && (
+            {/* STEP 3 DRIVER: DNI BACK */}
+            {role === 'driver' && step === 3 && (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6 text-center">
+                        <label className="block text-sm font-bold text-amber-400 mb-6 uppercase tracking-wider">Documentación: DNI Dorso</label>
+                        <DocumentUpload label="Pulsa para subir Dorso del DNI" preview={idBackPreview} inputRef={idBackInputRef} onChange={e => handlePhotoChange(e, 'idBack')} />
+                        <p className="text-[11px] text-slate-500 mt-6">Tu identificación es necesaria para validar tu cuenta.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* STEP 4 DRIVER: LICENSE */}
+            {role === 'driver' && step === 4 && (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6 text-center">
+                        <label className="block text-sm font-bold text-amber-400 mb-6 uppercase tracking-wider">Documentación: Carnet de Conducir</label>
+                        <DocumentUpload label="Pulsa para subir Carnet" preview={licensePreview} inputRef={licenseInputRef} onChange={e => handlePhotoChange(e, 'license')} />
+                        <p className="text-[11px] text-slate-500 mt-6">Sube una foto clara de tu licencia vigente.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* STEP 2 CUSTOMER / STEP 5 DRIVER: PROFILE */}
+            {((role === 'customer' && step === 2) || (role === 'driver' && step === 5)) && (
                 <div className="space-y-6 animate-fadeIn">
                     <Input name="full_name" label="Nombre Completo" required onChange={handleInputChange} value={formState.full_name || ''} />
                     <Input name="dni" label="DNI" required onChange={handleInputChange} value={formState.dni || ''} />
                     <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} value={formState.phone || ''} />
                     <PlacePicker name="address" label="Dirección Habitual" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Ej: Calle falsa 123..." />
                     
-                    <div className="flex items-center gap-4 pt-4">
-                        <img src={photoPreview || 'https://ui-avatars.com/api/?name=?&background=0f172a&color=fff&size=80'} className="w-16 h-16 rounded-full border-2 border-slate-700" alt="Avatar" />
+                    <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
+                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                            <img src={photoPreview || 'https://ui-avatars.com/api/?name=?&background=0f172a&color=fff&size=80'} className="w-16 h-16 rounded-full border-2 border-slate-700 object-cover" alt="Avatar" />
+                            <div className="absolute inset-0 bg-slate-950/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Icon type="camera" className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
                         <div className="flex-1">
                             <label className="block text-xs text-slate-500 mb-1">Foto de Perfil</label>
                             <input type="file" accept="image/*" ref={fileInputRef} onChange={e => handlePhotoChange(e, 'profile')} className="hidden" />
-                            <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>Cambiar</Button>
+                            <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>Cambiar</Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* STEP 4 DRIVER: VEHICLE */}
-            {role === 'driver' && step === 4 && (
+            {/* STEP 6 DRIVER: VEHICLE */}
+            {role === 'driver' && step === 6 && (
                 <div className="space-y-6 animate-fadeIn">
                     <div className="grid grid-cols-2 gap-4">
                         <Input name="city" label="Ciudad" required onChange={handleInputChange} value={formState.city || ''} />
@@ -387,12 +443,17 @@ const OnboardingView: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <img src={vehiclePhotoPreview || 'https://ui-avatars.com/api/?name=V&background=0f172a&color=fff&size=80'} className="w-20 h-20 rounded-xl border-2 border-slate-700 object-cover" alt="Vehicle" />
+                    <div className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                        <div className="relative group cursor-pointer" onClick={() => vehicleFileInputRef.current?.click()}>
+                            <img src={vehiclePhotoPreview || 'https://ui-avatars.com/api/?name=V&background=0f172a&color=fff&size=80'} className="w-20 h-20 rounded-xl border-2 border-slate-700 object-cover" alt="Vehicle" />
+                            <div className="absolute inset-0 bg-slate-950/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Icon type="camera" className="w-6 h-6 text-white" />
+                            </div>
+                        </div>
                         <div className="flex-1">
                             <label className="block text-xs text-slate-500 mb-1">Foto del Vehículo</label>
                             <input type="file" accept="image/*" ref={vehicleFileInputRef} onChange={e => handlePhotoChange(e, 'vehicle')} className="hidden" />
-                            <Button type="button" variant="secondary" onClick={() => vehicleFileInputRef.current?.click()}>Subir</Button>
+                            <Button type="button" variant="secondary" size="sm" onClick={() => vehicleFileInputRef.current?.click()}>Subir</Button>
                         </div>
                     </div>
 
@@ -409,7 +470,7 @@ const OnboardingView: React.FC = () => {
             
             <div className="pt-6 flex gap-3">
                 {step > 1 && <Button type="button" variant="secondary" onClick={prevStep} className="flex-1">Atrás</Button>}
-                {((role === 'driver' && step < 4) || (role === 'customer' && step < 2)) ? (
+                {((role === 'driver' && step < 6) || (role === 'customer' && step < 2)) ? (
                     <Button type="button" onClick={nextStep} className="flex-1">Continuar</Button>
                 ) : (
                     <Button type="submit" isLoading={isLoading} className="flex-1">Finalizar Registro</Button>
