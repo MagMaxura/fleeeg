@@ -115,6 +115,9 @@ export type Database = {
           vehicle_photo_url: string | null;
           vehicle_photo_path: string | null;
           payment_info: string | null;
+          dni_front_url: string | null;
+          dni_back_url: string | null;
+          license_url: string | null;
           filter_preferences: {
             cities?: string[];
             max_weight_kg?: number;
@@ -143,6 +146,9 @@ export type Database = {
           vehicle_photo_url?: string | null;
           vehicle_photo_path?: string | null;
           payment_info?: string | null;
+          dni_front_url?: string | null;
+          dni_back_url?: string | null;
+          license_url?: string | null;
           filter_preferences?: {
             cities?: string[];
             max_weight_kg?: number;
@@ -168,6 +174,9 @@ export type Database = {
           vehicle_photo_url?: string | null;
           vehicle_photo_path?: string | null;
           payment_info?: string | null;
+          dni_front_url?: string | null;
+          dni_back_url?: string | null;
+          license_url?: string | null;
           filter_preferences?: {
             cities?: string[];
             max_weight_kg?: number;

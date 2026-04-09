@@ -460,7 +460,10 @@ const App: React.FC = () => {
     newUser,
     password,
     photoFile,
-    vehiclePhotoFile
+    vehiclePhotoFile,
+    idFrontFile,
+    idBackFile,
+    licenseFile
   ) => {
     // Step 1: Sign up the user in Supabase Auth. This sends the confirmation email.
     // FIX: Added a non-null assertion `!` because `newUser` of type `ProfileInsert` has an optional `email`, but the signUp function requires it. The form guarantees it exists.
@@ -477,14 +480,20 @@ const App: React.FC = () => {
     const profileUpdatePayload: ProfileUpdate = { ...profileData };
 
     try {
-      // Step 2: Upload profile and vehicle photos if they exist.
-      const [photoUrl, vehiclePhotoUrl] = await Promise.all([
+      // Step 2: Upload profile, vehicle and document photos if they exist.
+      const [photoUrl, vehiclePhotoUrl, idFrontUrl, idBackUrl, licenseUrl] = await Promise.all([
         photoFile ? uploadImage(photoFile, `profiles/${userId}/${Date.now()}_${photoFile.name}`, 'foto-perfil') : Promise.resolve(null),
-        vehiclePhotoFile ? uploadImage(vehiclePhotoFile, `vehicles/${userId}/${Date.now()}_${vehiclePhotoFile.name}`, 'vehicle-photos') : Promise.resolve(null)
+        vehiclePhotoFile ? uploadImage(vehiclePhotoFile, `vehicles/${userId}/${Date.now()}_${vehiclePhotoFile.name}`, 'vehicle-photos') : Promise.resolve(null),
+        idFrontFile ? uploadImage(idFrontFile, `documents/${userId}/dni_front_${Date.now()}_${idFrontFile.name}`, 'foto-perfil') : Promise.resolve(null),
+        idBackFile ? uploadImage(idBackFile, `documents/${userId}/dni_back_${Date.now()}_${idBackFile.name}`, 'foto-perfil') : Promise.resolve(null),
+        licenseFile ? uploadImage(licenseFile, `documents/${userId}/license_${Date.now()}_${licenseFile.name}`, 'foto-perfil') : Promise.resolve(null)
       ]);
 
       if (photoUrl) profileUpdatePayload.photo_url = photoUrl;
       if (vehiclePhotoUrl) profileUpdatePayload.vehicle_photo_url = vehiclePhotoUrl;
+      if (idFrontUrl) profileUpdatePayload.dni_front_url = idFrontUrl;
+      if (idBackUrl) profileUpdatePayload.dni_back_url = idBackUrl;
+      if (licenseUrl) profileUpdatePayload.license_url = licenseUrl;
 
     } catch (uploadError: any) {
       console.error("Error during file upload:", uploadError);
