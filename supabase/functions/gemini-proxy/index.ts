@@ -1,92 +1,95 @@
-// FIX: Added a Deno global declaration to resolve TypeScript errors in environments
-// that don't have Deno types loaded by default (e.g., standard TS servers).
-declare const Deno: any;
+// supabase/functions/gemini-proxy/index.ts
 
-// Importa los módulos necesarios. '@google/genai' para la IA.
-// FIX: Switched from the `npm:` specifier to `esm.sh` for better runtime stability
-// in Deno Deploy, addressing potential startup crashes that cause "Failed to fetch" errors.
-import { GoogleGenAI, Type } from 'https://esm.sh/@google/genai@0.24.0';
+import { GoogleGenerativeAI, SchemaType } from 'https://esm.sh/@google/generative-ai@0.24.0';
 
-// --- Lógica Principal de la Función ---
 Deno.serve(async (req: Request) => {
-  // A simplified, known-good CORS configuration to prevent preflight failures.
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  // Handle CORS preflight requests.
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // --- Seguridad: Obtener la API Key de forma segura ---
-    // Leemos la clave de API desde los "Secrets" de la función en el dashboard de Supabase.
-    // NUNCA escribas la clave directamente en el código.
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
-      throw new Error('La variable de entorno GEMINI_API_KEY no está configurada en los secretos de la función.');
+      throw new Error('GEMINI_API_KEY not configured.');
     }
     
-    // --- Router Lógico: Determinar qué acción realizar ---
-    // Extraemos la acción y el payload del cuerpo JSON de la petición del frontend.
     const { action, payload } = await req.json();
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    
+    // Use gemini-2.0-flash (or 1.5 flash)
+    const model = genAI.getGenerativeModel({ 
+        model: 'gemini-2.0-flash',
+    });
 
-    // @google/genai Coding Guidelines: Incorrect constructor `new GoogleGenAI(API_KEY)`. Must use a named parameter.
-    // FIX: Updated constructor to use a named parameter as required.
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     let prompt: string;
-    let schema: any; // Usamos 'any' porque el esquema cambia dinámicamente
+    let schema: any;
+    let contents: any;
 
-    // Construimos el prompt y el esquema de respuesta según la acción solicitada.
     if (action === 'getDriverEta') {
       const { driverLocation, tripOrigin } = payload;
-      if (!driverLocation || !tripOrigin) {
-        throw new Error('Faltan datos en el payload para la acción getDriverEta');
-      }
+      if (!driverLocation || !tripOrigin) throw new Error('Missing data for getDriverEta');
       
       prompt = `Calcula el tiempo de viaje estimado en minutos para que un conductor vaya desde su ubicación actual a un punto de recogida. Ubicación actual del conductor: "${driverLocation}". Origen de recogida del viaje: "${tripOrigin}". Proporciona un único tiempo estimado de llegada (ETA) en minutos como un objeto JSON.`;
-
       schema = {
-        type: Type.OBJECT,
+        type: SchemaType.OBJECT,
         properties: {
-          etaMinutes: { type: Type.NUMBER, description: 'Tiempo estimado de llegada en minutos para que el conductor alcance la ubicación de recogida.' },
+          etaMinutes: { type: SchemaType.NUMBER, description: 'ETA in minutes' },
         },
         required: ['etaMinutes'],
       };
+      contents = [{ role: 'user', parts: [{ text: prompt }] }];
+
+    } else if (action === 'extractCardData') {
+      const { image, mimeType } = payload;
+      if (!image || !mimeType) throw new Error('Missing image data for extractCardData');
+
+      prompt = `Analiza la imagen de esta identificación y extrae: nombre completo (full_name), número de documento (dni), dirección (address), ciudad (city) y provincia (province). Omite campos no legibles. Devuelve JSON.`;
+      schema = {
+        type: SchemaType.OBJECT,
+        properties: {
+          full_name: { type: SchemaType.STRING },
+          dni: { type: SchemaType.STRING },
+          address: { type: SchemaType.STRING },
+          city: { type: SchemaType.STRING },
+          province: { type: SchemaType.STRING },
+        }
+      };
+      contents = [{
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { data: image, mimeType: mimeType } }
+        ]
+      }];
 
     } else {
-      throw new Error(`Acción no válida especificada: "${action}"`);
+      throw new Error(`Invalid action: "${action}"`);
     }
 
-    // --- Llamada a la API de Gemini ---
-    const response = await ai.models.generateContent({
-      // @google/genai Coding Guidelines: Do not use deprecated model `gemini-1.5-flash`. Use `gemini-2.5-flash`.
-      // FIX: Updated deprecated model 'gemini-1.5-flash' to 'gemini-2.5-flash'.
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
+    const result = await model.generateContent({
+      contents: contents,
+      generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: schema,
       }
     });
 
-    // Devolvemos la respuesta JSON de Gemini al frontend.
-    return new Response(response.text, {
+    return new Response(result.response.text(), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
 
-  } catch (error) {
-    // --- Manejo de Errores ---
-    // Si algo sale mal (API key faltante, JSON malformado, error de Gemini, etc.),
-    // lo capturamos y devolvemos una respuesta de error clara al frontend.
-    console.error('Error en la Edge Function gemini-proxy:', error);
+  } catch (error: any) {
+    console.error('Error in gemini-proxy:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500, // Usamos un código de error de servidor.
+      status: 500,
     });
   }
 });

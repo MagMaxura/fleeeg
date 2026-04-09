@@ -55,6 +55,7 @@ export interface AppContextType {
   updatePayoutStatus: (payoutId: string, status: PayoutRequest['status'], rejectionReason?: string, externalReference?: string) => Promise<SimpleAuthError | null>;
   driverLocations: DriverLocation[];
   updateUserRole: (userId: string, newRole: Profile['role']) => Promise<SimpleAuthError | null>;
+  extractCardData: (file: File) => Promise<{ full_name?: string, dni?: string, address?: string, city?: string, province?: string } | null>;
 }
 
 // Creating and exporting the context itself.

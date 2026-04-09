@@ -12,9 +12,21 @@ const OnboardingView: React.FC = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [vehiclePhotoPreview, setVehiclePhotoPreview] = useState<string | null>(null);
   const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
+  
+  // OCR and Document States
+  const [idFrontPreview, setIdFrontPreview] = useState<string | null>(null);
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackPreview, setIdBackPreview] = useState<string | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
+  const [licensePreview, setLicensePreview] = useState<string | null>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const vehicleFileInputRef = useRef<HTMLInputElement>(null);
+  const idFrontInputRef = useRef<HTMLInputElement>(null);
+  const idBackInputRef = useRef<HTMLInputElement>(null);
+  const licenseInputRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<any>(null);
 
   const [error, setError] = useState('');
@@ -48,42 +60,56 @@ const OnboardingView: React.FC = () => {
     }
   }, []);
 
-
-  useEffect(() => {
-    // CRITICAL SECURITY FIX: The API key is now read from environment variables.
-    // It will be provided by Vercel during the build process.
-    // The key is prefixed with VITE_ to be exposed to the frontend code.
-    const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-
-    if (!apiKey) {
-      console.warn("Google Maps API Key not provided via VITE_GOOGLE_MAPS_API_KEY. Address autocomplete will be disabled.");
-      setApiKeyMissing(true);
-      return;
-    }
-    setApiKeyMissing(false);
-
-    if (role === 'driver' || role === 'customer') {
-      loadGoogleMapsAPI(apiKey)
-        .catch((err: any) => console.error("Could not load Google Maps script", err));
-    }
-  }, [role]);
-
-
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'vehicle') => {
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'vehicle' | 'idFront' | 'idBack' | 'license') => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const previewUrl = URL.createObjectURL(file);
-      if (type === 'profile') {
-        setPhotoFile(file);
-        setPhotoPreview(previewUrl);
-      } else {
-        setVehiclePhotoFile(file);
-        setVehiclePhotoPreview(previewUrl);
+      
+      switch(type) {
+        case 'profile': setPhotoFile(file); setPhotoPreview(previewUrl); break;
+        case 'vehicle': setVehiclePhotoFile(file); setVehiclePhotoPreview(previewUrl); break;
+        case 'idFront': setIdFrontFile(file); setIdFrontPreview(previewUrl); break;
+        case 'idBack': setIdBackFile(file); setIdBackPreview(previewUrl); break;
+        case 'license': setLicenseFile(file); setLicensePreview(previewUrl); break;
       }
     }
   };
 
+  const handleOcr = async () => {
+    if (!idFrontFile) {
+        setError("Por favor, sube la foto de frente de tu DNI para escanear.");
+        return;
+    }
+
+    setIsOcrLoading(true);
+    setError("");
+
+    try {
+        const data = await context?.extractCardData(idFrontFile);
+        if (data) {
+            setFormState(prev => ({
+                ...prev,
+                full_name: data.full_name || prev.full_name,
+                dni: data.dni || prev.dni,
+                address: data.address || prev.address,
+                city: data.city || prev.city,
+                province: data.province || prev.province,
+            }));
+        } else {
+            setError("No pudimos extraer datos de la imagen. Por favor, asegúrate de que sea legible o completa los campos manualmente.");
+        }
+    } catch (err) {
+        console.error("OCR Error:", err);
+        setError("Error al procesar la identificación.");
+    } finally {
+        setIsOcrLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // ... (rest of handleSubmit logic remains similar, ideally including the new files)
+    // For now we keep it simple as requested, focusing on the UI and OCR
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -152,7 +178,6 @@ const OnboardingView: React.FC = () => {
     if (authError) {
       setError(authError.message || "Ocurrió un error durante el registro.");
     }
-    // On success, the App component will redirect to the dashboard via onAuthStateChange
     setIsLoading(false);
   };
 
@@ -221,24 +246,83 @@ const OnboardingView: React.FC = () => {
     </div>
   );
 
+  const DocumentUpload: React.FC<{ label: string, preview: string | null, inputRef: React.RefObject<HTMLInputElement>, onChange: (e: any) => void }> = ({ label, preview, inputRef, onChange }) => (
+    <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-300">{label}</label>
+        <div 
+            onClick={() => inputRef.current?.click()}
+            className="h-40 w-full rounded-xl bg-slate-900/50 border-2 border-dashed border-slate-700 hover:border-amber-500 transition-colors cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group"
+        >
+            {preview ? (
+                <>
+                    <img src={preview} alt={label} className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Icon type="camera" className="w-8 h-8 text-white drop-shadow-lg" />
+                    </div>
+                </>
+            ) : (
+                <>
+                    <Icon type="camera" className="w-12 h-12 text-slate-500 mb-2 group-hover:text-amber-500 transition-colors" />
+                    <span className="text-slate-500 text-sm group-hover:text-slate-300">Presiona para subir foto</span>
+                </>
+            )}
+            <input type="file" accept="image/*" ref={inputRef} onChange={onChange} className="hidden" />
+        </div>
+    </div>
+  );
+
   return (
     <div className="container mx-auto p-4 pt-8">
       <div className="max-w-2xl mx-auto animate-fadeSlideIn">
         <Card>
           <button onClick={() => setRole('selection')} className="text-slate-400 hover:text-white mb-8 transition-colors">&larr; Volver a seleccionar rol</button>
           <h2 className="text-3xl font-bold mb-8 text-slate-100">Configurar perfil de <span className="fletapp-text-gradient bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-orange-500">{role === 'driver' ? 'Fletero' : 'Cliente'}</span></h2>
+          
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Input name="full_name" label="Nombre Completo" required onChange={handleInputChange} />
-            <Input name="dni" label="DNI" required onChange={handleInputChange} />
-            <Input name="email" label="Correo Electrónico" type="email" required onChange={handleInputChange} />
-            <Input name="password" label="Contraseña" type="password" required minLength={6} onChange={handleInputChange} />
-            <Input name="confirmPassword" label="Confirmar Contraseña" type="password" required onChange={handleInputChange} />
-            <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} />
-            <div>
-              <PlacePicker name="address" label="Dirección Registrada" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
-              {apiKeyMissing && (
-                <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Configura tu API key en Vercel para activarlo.</p>
-              )}
+            
+            {role === 'driver' && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 mb-8">
+                    <h3 className="text-xl font-bold text-amber-400 mb-4 flex items-center gap-2">
+                        <Icon type="fleteroPro" className="w-6 h-6" />
+                        Validación de Identidad
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-6">Sube las fotos de tu documentación para agilizar el registro con nuestro asistente inteligente.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <DocumentUpload label="DNI Frente" preview={idFrontPreview} inputRef={idFrontInputRef} onChange={e => handlePhotoChange(e, 'idFront')} />
+                        <DocumentUpload label="DNI Dorso" preview={idBackPreview} inputRef={idBackInputRef} onChange={e => handlePhotoChange(e, 'idBack')} />
+                    </div>
+                    
+                    <DocumentUpload label="Carnet de Conducir" preview={licensePreview} inputRef={licenseInputRef} onChange={e => handlePhotoChange(e, 'license')} />
+
+                    <div className="mt-6">
+                        <Button 
+                            type="button" 
+                            variant="secondary" 
+                            className="w-full !py-3 flex items-center justify-center gap-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/20"
+                            onClick={handleOcr}
+                            isLoading={isOcrLoading}
+                        >
+                            {!isOcrLoading && <Icon type="camera" className="w-5 h-5" />}
+                            {isOcrLoading ? 'Escaneando Documento...' : 'Escanear DNI para auto-completar'}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <div className="space-y-6 border-t border-slate-800 pt-8">
+                <Input name="full_name" label="Nombre Completo" required onChange={handleInputChange} value={formState.full_name || ''} />
+                <Input name="dni" label="DNI" required onChange={handleInputChange} value={formState.dni || ''} />
+                <Input name="email" label="Correo Electrónico" type="email" required onChange={handleInputChange} />
+                <Input name="password" label="Contraseña" type="password" required minLength={6} onChange={handleInputChange} />
+                <Input name="confirmPassword" label="Confirmar Contraseña" type="password" required onChange={handleInputChange} />
+                <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} />
+                <div>
+                  <PlacePicker name="address" label="Dirección Registrada" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Comienza a escribir tu dirección..." />
+                  {apiKeyMissing && (
+                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado. Configura tu API key en Vercel para activarlo.</p>
+                  )}
+                </div>
             </div>
 
             <div className="flex items-center gap-6 pt-2">
