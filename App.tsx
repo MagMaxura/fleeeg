@@ -89,6 +89,34 @@ const App: React.FC = () => {
     getLocation();
   }, [getLocation]);
 
+  // --- INITIAL SESSION CLEANUP ---
+  useEffect(() => {
+    const cleanBrokenSession = async () => {
+      try {
+        const { error } = await supabase.auth.getSession();
+        if (error) {
+          const isRefreshTokenError = error.message.includes('Refresh Token') || 
+                                    error.message.includes('not found') ||
+                                    error.status === 400;
+
+          if (isRefreshTokenError) {
+            console.warn("[App] Broken auth session detected. Cleaning up...");
+            await supabase.auth.signOut();
+            // Force clear storage if signOut didn't (sometimes it fails if token is missing)
+            for (const key in localStorage) {
+              if (key.includes('supabase.auth.token')) {
+                localStorage.removeItem(key);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[App] Unexpected error during session cleanup:", e);
+      }
+    };
+    cleanBrokenSession();
+  }, []);
+
   // --- DRIVER TRACKING SYNC ---
   useEffect(() => {
     if (!user || user.role !== 'driver') return;
@@ -390,21 +418,42 @@ const App: React.FC = () => {
     formData.append('path', path);
     formData.append('bucket', bucket);
 
-    const { data, error } = await supabase.functions.invoke('upload-proxy', {
-      body: formData,
-    });
+    console.log(`[App] Attempting upload to bucket "${bucket}" at path "${path}"...`);
 
-    if (error) {
-      console.error('Detailed error from supabase.functions.invoke("upload-proxy"):', error);
-      const errorMessage = error.context?.error?.message || error.message;
-      throw new Error(`Failed to communicate with the upload service. Details: ${errorMessage}`);
+    try {
+      const { data, error } = await supabase.functions.invoke('upload-proxy', {
+        body: formData,
+      });
+
+      if (error) {
+        console.error('[App] Detailed error from supabase.functions.invoke("upload-proxy"):', error);
+        
+        // Handle specific status codes
+        const status = error.status || (error.context?.response?.status);
+        let message = error.message;
+
+        if (status === 404) {
+          message = "El servicio de carga de archivos no está desplegado o no se encontró (404).";
+        } else if (status === 401 || status === 403) {
+          message = "Error de autenticación al subir el archivo. Intenta cerrar sesión e ingresar de nuevo.";
+        } else if (data?.details) {
+          message = data.details;
+        }
+
+        throw new Error(`Error en el servicio de subida: ${message}`);
+      }
+
+      if (!data?.publicUrl) {
+        throw new Error("La subida fue exitosa pero no se recibió la URL pública del archivo.");
+      }
+
+      console.log(`[App] Upload successful. Public URL: ${data.publicUrl}`);
+      return data.publicUrl;
+
+    } catch (err: any) {
+      console.error("[App] uploadImage failed:", err);
+      throw err;
     }
-
-    if (!data?.publicUrl) {
-      throw new Error("Image upload succeeded but did not return a public URL.");
-    }
-
-    return data.publicUrl;
   };
 
   const registerUser = useCallback<AppContextType['registerUser']>(async (
