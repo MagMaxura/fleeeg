@@ -1047,6 +1047,35 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const extractCardData = useCallback<AppContextType['extractCardData']>(async (file) => {
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+      });
+      reader.readAsDataURL(file);
+      const imageBase64 = await base64Promise;
+
+      const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+        body: {
+          action: 'extractCardData',
+          payload: {
+            image: imageBase64,
+            mimeType: file.type
+          }
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error("Error in extractCardData:", err);
+      return null;
+    }
+  }, []);
 
   const appContextValue: AppContextType | null = useMemo(() => ({
     user,
@@ -1085,13 +1114,14 @@ const App: React.FC = () => {
     requestPayout,
     updatePayoutStatus,
     driverLocations,
-    updateUserRole
+    updateUserRole,
+    extractCardData
   }), [
     user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser,
     updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, loadTrip, startTrip, completeTrip, processPayment,
     viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout,
     activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId,
-    payoutRequests, requestPayout, updatePayoutStatus, driverLocations, updateUserRole
+    payoutRequests, requestPayout, updatePayoutStatus, driverLocations, updateUserRole, extractCardData
   ]);
 
   const Header = () => {
