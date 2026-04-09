@@ -514,13 +514,29 @@ const App: React.FC = () => {
 
     if (completeRegistrationError) {
       console.error("Error completing registration via Edge Function:", completeRegistrationError);
+      
+      // Intentar extraer el mensaje de error detallado de la respuesta
+      let detailMsg = "Error desconocido";
+      try {
+        // En algunas versiones de la librería, el error contiene la respuesta
+        const body = await (completeRegistrationError as any).context?.response?.json();
+        if (body && body.details) detailMsg = body.details;
+        else if (body && body.error) detailMsg = body.error;
+      } catch (e) {
+        detailMsg = completeRegistrationError.message;
+      }
+
+      // Mostrar alerta para que el usuario pueda ver el error real
+      alert(`Error en el servidor: ${detailMsg}`);
+      
       // Sign out to clean up the failed registration
       await supabase.auth.signOut();
       return { 
-        message: "No se pudo guardar la información del perfil. Intenta de nuevo.", 
+        message: `No se pudo guardar el perfil: ${detailMsg}`, 
         name: 'ProfileError' 
       };
     }
+
 
     // Step 4: Show confirmation message and sign out the temporary session.
     // This forces the user to verify their email before they can properly log in.

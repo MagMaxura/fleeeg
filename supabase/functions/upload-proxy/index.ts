@@ -104,12 +104,12 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Allow upload if user was created in the last 15 minutes (registration window)
+      // Allow upload if user was created in the last 60 minutes (registration window)
       const createdAt = new Date(dbUser.created_at).getTime();
       const now = Date.now();
-      const fifteenMinutes = 15 * 60 * 1000;
+      const sixtyMinutes = 60 * 60 * 1000;
 
-      if (now - createdAt > fifteenMinutes) {
+      if (now - createdAt > sixtyMinutes) {
         console.error(`[upload-proxy] Fallback auth failed: User ${targetUserId} was created more than 15 minutes ago and is not authenticated.`);
         return new Response(JSON.stringify({ error: "Session expired. Please log in to upload files." }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -16,13 +16,18 @@ Deno.serve(async (req: Request) => {
   try {
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY not configured.');
+      console.error('GEMINI_API_KEY is missing in environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Configuración incompleta: falta GEMINI_API_KEY en Supabase.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
     }
     
-    const { action, payload } = await req.json();
+    const body = await req.json();
+    const { action, payload } = body;
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     
-    // Use gemini-2.0-flash (or 1.5 flash)
+    // Using gemini-2.0-flash as requested
     const model = genAI.getGenerativeModel({ 
         model: 'gemini-2.0-flash',
     });
@@ -37,9 +42,10 @@ Deno.serve(async (req: Request) => {
       
       prompt = `Calcula el tiempo de viaje estimado en minutos para que un conductor vaya desde su ubicación actual a un punto de recogida. Ubicación actual del conductor: "${driverLocation}". Origen de recogida del viaje: "${tripOrigin}". Proporciona un único tiempo estimado de llegada (ETA) en minutos como un objeto JSON.`;
       schema = {
+        description: "Estimated time of arrival",
         type: SchemaType.OBJECT,
         properties: {
-          etaMinutes: { type: SchemaType.NUMBER, description: 'ETA in minutes' },
+          etaMinutes: { type: SchemaType.NUMBER },
         },
         required: ['etaMinutes'],
       };
@@ -47,19 +53,22 @@ Deno.serve(async (req: Request) => {
 
     } else if (action === 'extractCardData') {
       const { image, mimeType } = payload;
-      if (!image || !mimeType) throw new Error('Missing image data for extractCardData');
+      if (!image || !mimeType) throw new Error('Faltan datos de la imagen para extraer información.');
 
-      prompt = `Analiza la imagen de esta identificación y extrae: nombre completo (full_name), número de documento (dni), dirección (address), ciudad (city) y provincia (province). Omite campos no legibles. Devuelve JSON.`;
+      prompt = `Analiza la imagen de esta identificación (DNI/Cédula) y extrae la información requerida en formato JSON. Si algún campo no es legible, devuélvelo como null.`;
       schema = {
+        description: "Información extraída del documento de identidad",
         type: SchemaType.OBJECT,
         properties: {
-          full_name: { type: SchemaType.STRING },
-          dni: { type: SchemaType.STRING },
-          address: { type: SchemaType.STRING },
-          city: { type: SchemaType.STRING },
-          province: { type: SchemaType.STRING },
-        }
+          full_name: { type: SchemaType.STRING, description: "Nombre completo tal como aparece en el documento" },
+          dni: { type: SchemaType.STRING, description: "Número de documento de identidad" },
+          address: { type: SchemaType.STRING, description: "Dirección completa si figura" },
+          city: { type: SchemaType.STRING, description: "Ciudad o localidad" },
+          province: { type: SchemaType.STRING, description: "Provincia o estado" },
+        },
+        required: ['full_name', 'dni']
       };
+      
       contents = [{
         role: 'user',
         parts: [
@@ -69,7 +78,7 @@ Deno.serve(async (req: Request) => {
       }];
 
     } else {
-      throw new Error(`Invalid action: "${action}"`);
+      throw new Error(`Acción no válida: "${action}"`);
     }
 
     const result = await model.generateContent({
@@ -80,16 +89,23 @@ Deno.serve(async (req: Request) => {
       }
     });
 
-    return new Response(result.response.text(), {
+    const responseText = result.response.text();
+    console.log('Gemini response:', responseText);
+
+    return new Response(responseText, {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
 
   } catch (error: any) {
-    console.error('Error in gemini-proxy:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Error total en gemini-proxy:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Error interno en el procesador de documentos.',
+      details: error.message 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }
 });
+
