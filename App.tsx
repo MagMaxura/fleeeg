@@ -493,18 +493,24 @@ const App: React.FC = () => {
       return { name: 'UploadError', message: uploadError.message || 'Error al subir las imágenes.' };
     }
 
-    // Step 3: Update the user's profile row created by the auth trigger.
-    // FIX: Corrected payload type to satisfy Supabase client.
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update(profileUpdatePayload)
-      .eq('id', userId);
+    // Step 3: Update the user's profile row using the complete-registration Edge Function.
+    // This bypasses RLS and ensures the data is saved even before email confirmation.
+    console.log(`[App] Completing registration for user ${userId}...`);
+    const { error: completeRegistrationError } = await supabase.functions.invoke('complete-registration', {
+      body: { 
+        userId, 
+        profileData: profileUpdatePayload 
+      },
+    });
 
-    if (profileError) {
-      console.error("Error updating profile:", profileError);
+    if (completeRegistrationError) {
+      console.error("Error completing registration via Edge Function:", completeRegistrationError);
       // Sign out to clean up the failed registration
       await supabase.auth.signOut();
-      return { message: profileError.message, name: 'ProfileError' };
+      return { 
+        message: "No se pudo guardar la información del perfil. Intenta de nuevo.", 
+        name: 'ProfileError' 
+      };
     }
 
     // Step 4: Show confirmation message and sign out the temporary session.
