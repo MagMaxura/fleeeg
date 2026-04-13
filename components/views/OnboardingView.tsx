@@ -310,7 +310,7 @@ const OnboardingView: React.FC = () => {
                     <span className="text-slate-500 text-xs text-center px-2">{label}</span>
                 </>
             )}
-            <input type="file" accept="image/*" ref={inputRef} onChange={onChange} className="hidden" />
+            <input type="file" accept="image/*" capture="environment" ref={inputRef} onChange={onChange} className="hidden" />
         </div>
     </div>
   );
@@ -373,7 +373,7 @@ const OnboardingView: React.FC = () => {
                                 isLoading={isOcrLoading}
                                 disabled={!idFrontFile}
                             >
-                                {isOcrLoading ? 'Analizando...' : ocrSuccess === true ? '✓ Datos Validados' : ocrSuccess === false ? '⚠ Error de lectura. Intenta otra foto' : 'Escanear DNI'}
+                                {isOcrLoading ? 'Analizando...' : ocrSuccess === true ? '✓ Datos Validados' : ocrSuccess === false ? '⚠ Error de lectura. Intenta otra foto' : 'Comprobar requisitos'}
                             </Button>
                         </div>
                     </div>
