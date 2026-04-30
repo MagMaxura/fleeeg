@@ -2,7 +2,7 @@ import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } 
 import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
 import { AppContext } from '../../../AppContext.ts';
 import type { Trip, NewTrip } from '../../../src/types.ts';
-import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea, PlacePicker } from '../../ui.tsx';
+import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea, UberAddressInput } from '../../ui.tsx';
 
 declare global {
     interface Window {
@@ -87,8 +87,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
     const mapRef = useRef<HTMLDivElement>(null);
-    const originRef = useRef<any>(null);
-    const destinationRef = useRef<any>(null);
     const mapInstanceRef = useRef<any>(null);
     const polylineRef = useRef<any>(null);
     const originMarkerRef = useRef<any>(null);
@@ -116,10 +114,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 // Cargo photos string array from DB
                 cargo_photos: tripToEdit.cargo_photos || [],
             });
-            // Note: We can't recreate File objects from URLs, so editing won't show existing photos as 'Files'.
-            // They will be displayed via the URL in a full implementation if needed.
-            if (originRef.current) originRef.current.value = tripToEdit.origin;
-            if (destinationRef.current) destinationRef.current.value = tripToEdit.destination;
         } else {
             // Explicitly reset form for new trip creation
             setTripData({
@@ -137,8 +131,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 cargo_photos: [],
             });
             setCargoPhotos([]);
-            if (originRef.current) originRef.current.value = '';
-            if (destinationRef.current) destinationRef.current.value = '';
             setOriginPlace(null);
             setDestinationPlace(null);
             if (polylineRef.current) {
@@ -156,11 +148,9 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 const address = results[0].formatted_address;
                 const place = results[0];
                 if (type === 'origin') {
-                    if (originRef.current) originRef.current.value = address;
                     setOriginPlace(place);
                     handleInputChange({ target: { name: 'origin', value: address } } as any);
                 } else {
-                    if (destinationRef.current) destinationRef.current.value = address;
                     setDestinationPlace(place);
                     handleInputChange({ target: { name: 'destination', value: address } } as any);
                 }
@@ -211,9 +201,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             originMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('origin', originMarkerRef.current.position));
             destinationMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('destination', destinationMarkerRef.current.position));
 
-            // Click event listener removed: users must use PlacePicker or explicit buttons to avoid accidental pin drops.
         }
-        // Autocompletes handled via PlacePicker in render
     }, [handleMarkerDragEnd]);
 
     useEffect(() => {
@@ -381,6 +369,51 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         }
         handleInputChange({ target: { name: 'destination', value: inputValue } } as any);
     }, [handleInputChange]);
+
+    const handleUseCurrentLocation = useCallback(() => {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                if (!geocoderRef.current) return;
+                geocoderRef.current.geocode(
+                    { location: { lat: latitude, lng: longitude } },
+                    (results: any[], status: string) => {
+                        if (status === 'OK' && results[0]) {
+                            const result = results[0];
+                            const legacyPlace = {
+                                geometry: { location: { lat: () => latitude, lng: () => longitude } },
+                                formatted_address: result.formatted_address,
+                                address_components: result.address_components,
+                                place_id: result.place_id,
+                            };
+                            handleOriginSelect(legacyPlace, result.formatted_address);
+                        }
+                    }
+                );
+            },
+            (err) => console.error('Geolocation error:', err),
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    }, [handleOriginSelect]);
+
+    const handleSwapAddresses = useCallback(() => {
+        const prevOrigin = tripData.origin;
+        const prevDest = tripData.destination;
+        const prevOriginPlace = originPlace;
+        const prevDestPlace = destinationPlace;
+        setOriginPlace(prevDestPlace);
+        setDestinationPlace(prevOriginPlace);
+        setTripData(prev => ({ ...prev, origin: prevDest || '', destination: prevOrigin || '' }));
+        if (prevDestPlace?.geometry?.location && originMarkerRef.current) {
+            originMarkerRef.current.position = prevDestPlace.geometry.location;
+            originMarkerRef.current.map = mapInstanceRef.current;
+        }
+        if (prevOriginPlace?.geometry?.location && destinationMarkerRef.current) {
+            destinationMarkerRef.current.position = prevOriginPlace.geometry.location;
+            destinationMarkerRef.current.map = mapInstanceRef.current;
+        }
+    }, [tripData.origin, tripData.destination, originPlace, destinationPlace]);
 
     const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTripData(prev => ({ ...prev, [e.target.name]: e.target.checked }));
@@ -590,35 +623,76 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             <div className="p-6 transition-opacity duration-300" style={{ display: currentStep === 1 && selectionMode === 'map' ? 'none' : 'block', opacity: currentStep === 1 && selectionMode === 'map' ? 0 : 1 }}>
                 {/* Step Content */}
                 <div className="min-h-[300px] animate-fadeSlideIn">
-                    {/* STEP 1: Origin & Destination */}
+                    {/* STEP 1: Origin & Destination — Uber-style */}
                     {currentStep === 1 && (
-                        <div className="space-y-5">
-                            <div className="bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 flex mb-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('text')}
-                                    className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 ${selectionMode === 'text' ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    Escribir Dirección
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('map')}
-                                    className={`flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 ${selectionMode === 'map' ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
-                                >
-                                    Elegir en el Mapa
-                                </button>
+                        <div className="space-y-4">
+                            {/* Address card */}
+                            <div className="relative bg-slate-900/70 rounded-2xl border border-slate-700/60 p-4 shadow-lg">
+                                {/* Origin row */}
+                                <div className="flex items-start gap-3">
+                                    <div className="flex flex-col items-center pt-4 flex-shrink-0">
+                                        <span className="w-3 h-3 rounded-full bg-amber-400 border-2 border-slate-900 flex-shrink-0" />
+                                        <span className="w-px h-8 bg-slate-600/70 mt-1" />
+                                    </div>
+                                    <div className="flex-1 pb-1">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Punto de Retiro</p>
+                                        <UberAddressInput
+                                            placeholder="¿Dónde te buscamos?"
+                                            value={tripData.origin || ''}
+                                            onPlaceSelect={handleOriginSelect}
+                                            showGPSButton={true}
+                                            onUseCurrentLocation={handleUseCurrentLocation}
+                                            dotColor="amber"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Swap button */}
+                                <div className="flex items-center justify-end pr-1 my-1">
+                                    <button
+                                        type="button"
+                                        onClick={handleSwapAddresses}
+                                        disabled={!tripData.origin && !tripData.destination}
+                                        className="text-slate-500 hover:text-amber-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1 text-xs py-0.5 px-2 rounded-lg hover:bg-slate-800/60"
+                                        title="Invertir origen y destino"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+                                        </svg>
+                                        Invertir
+                                    </button>
+                                </div>
+
+                                {/* Destination row */}
+                                <div className="flex items-start gap-3">
+                                    <div className="flex flex-col items-center pt-4 flex-shrink-0">
+                                        <span className="w-3 h-3 rounded-full bg-emerald-400 border-2 border-slate-900 flex-shrink-0" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Punto de Entrega</p>
+                                        <UberAddressInput
+                                            placeholder="¿Dónde entregamos?"
+                                            value={tripData.destination || ''}
+                                            onPlaceSelect={handleDestinationSelect}
+                                            dotColor="emerald"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="bg-sky-900/20 border border-sky-800/50 p-3 rounded-lg flex gap-3 text-sky-200">
-                                <Icon type="truck" className="w-6 h-6 flex-shrink-0" />
-                                <p className="text-sm">¡Hola! Para empezar a buscar al fletero ideal, dinos dónde empezamos y dónde terminamos este viaje. Si es para el futuro, ¡agéndalo!</p>
-                            </div>
+                            {/* Map pin secondary option */}
+                            <button
+                                type="button"
+                                onClick={() => setSelectionMode('map')}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-medium text-slate-400 hover:text-slate-200 border border-slate-700/50 hover:border-slate-600 rounded-xl transition-colors bg-slate-900/30"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /><line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" />
+                                </svg>
+                                Elegir en el mapa
+                            </button>
 
-                            <PlacePicker name="origin" label="Punto de Retiro (Origen)" placeholder="Ej: San Martín 123, CABA" ref={originRef} onPlaceSelect={handleOriginSelect} required defaultValue={tripData.origin || ''} />
-                            <PlacePicker name="destination" label="Punto de Entrega (Destino)" placeholder="Ej: Belgrano 456, CABA" ref={destinationRef} onPlaceSelect={handleDestinationSelect} required defaultValue={tripData.destination || ''} />
-
-                            <Input name="scheduled_date" label="Fecha y Hora (Opcional - por defecto ahora)" type="datetime-local" onChange={handleInputChange} value={tripData.scheduled_date || ''} />
+                            <Input name="scheduled_date" label="Fecha y Hora (Opcional)" type="datetime-local" onChange={handleInputChange} value={tripData.scheduled_date || ''} />
                         </div>
                     )}
 

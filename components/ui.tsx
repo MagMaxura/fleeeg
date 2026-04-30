@@ -200,6 +200,156 @@ export const PlacePicker = React.forwardRef<any, PlacePickerProps>(
 );
 PlacePicker.displayName = 'PlacePicker';
 
+// --- UBER-STYLE ADDRESS INPUT ---
+export interface UberAddressInputProps {
+  placeholder: string;
+  value?: string;
+  onPlaceSelect: (place: any, address: string) => void;
+  showGPSButton?: boolean;
+  onUseCurrentLocation?: () => void;
+  dotColor?: 'amber' | 'emerald';
+}
+
+export const UberAddressInput: React.FC<UberAddressInputProps> = ({
+  placeholder,
+  value = '',
+  onPlaceSelect,
+  showGPSButton = false,
+  onUseCurrentLocation,
+  dotColor = 'amber',
+}) => {
+  const [inputValue, setInputValue] = useState(value);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const autocompleteServiceRef = useRef<any>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const getService = () => {
+    if (!autocompleteServiceRef.current && (window as any).google?.maps?.places) {
+      autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompleteService();
+    }
+    return autocompleteServiceRef.current;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.length < 3) { setSuggestions([]); setShowDropdown(false); return; }
+    debounceRef.current = setTimeout(() => {
+      const service = getService();
+      if (!service) return;
+      setIsLoading(true);
+      service.getPlacePredictions(
+        { input: val, componentRestrictions: { country: 'ar' }, types: ['geocode', 'establishment'] },
+        (predictions: any[], status: string) => {
+          setIsLoading(false);
+          if (status === 'OK' && predictions) {
+            setSuggestions(predictions);
+            setShowDropdown(true);
+          } else {
+            setSuggestions([]);
+            setShowDropdown(false);
+          }
+        }
+      );
+    }, 300);
+  };
+
+  const handleSelectSuggestion = (prediction: any) => {
+    setInputValue(prediction.description);
+    setSuggestions([]);
+    setShowDropdown(false);
+    const g = (window as any).google;
+    if (!g?.maps?.places) return;
+    const dummyDiv = document.createElement('div');
+    const placesService = new g.maps.places.PlacesService(dummyDiv);
+    placesService.getDetails(
+      { placeId: prediction.place_id, fields: ['geometry', 'formatted_address', 'address_components', 'place_id', 'name'] },
+      (place: any, status: string) => {
+        if (status === 'OK' && place) {
+          onPlaceSelect(
+            {
+              geometry: { location: place.geometry.location },
+              formatted_address: place.formatted_address,
+              address_components: place.address_components,
+              place_id: place.place_id,
+              name: place.name,
+            },
+            prediction.description
+          );
+        }
+      }
+    );
+  };
+
+  const dotClass = dotColor === 'amber' ? 'bg-amber-400' : 'bg-emerald-400';
+  const focusBorderClass = dotColor === 'amber' ? 'focus-within:border-amber-500/70' : 'focus-within:border-emerald-500/70';
+
+  return (
+    <div className="relative">
+      <div className={`flex items-center gap-3 bg-slate-900/60 rounded-xl px-4 py-3 border border-slate-700/60 ${focusBorderClass} transition-colors duration-200`}>
+        <span className={`w-2.5 h-2.5 rounded-full ${dotClass} flex-shrink-0`} />
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleChange}
+          placeholder={placeholder}
+          className="flex-1 bg-transparent text-slate-100 outline-none placeholder-slate-500 text-sm min-w-0"
+          onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+          autoComplete="off"
+        />
+        {isLoading && (
+          <div className="w-4 h-4 border-2 border-slate-600 border-t-amber-400 rounded-full animate-spin flex-shrink-0" />
+        )}
+        {showGPSButton && onUseCurrentLocation && (
+          <button
+            type="button"
+            onClick={onUseCurrentLocation}
+            className="text-slate-400 hover:text-amber-400 transition-colors flex-shrink-0 p-0.5"
+            title="Usar mi ubicación actual"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" /><line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="2" y1="12" x2="5" y2="12" /><line x1="19" y1="12" x2="22" y2="12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {showDropdown && suggestions.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+          {suggestions.map((pred) => (
+            <button
+              key={pred.place_id}
+              type="button"
+              onMouseDown={() => handleSelectSuggestion(pred)}
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700/70 transition-colors text-left border-b border-slate-700/40 last:border-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+              </svg>
+              <div className="min-w-0">
+                <p className="text-sm text-slate-100 font-medium truncate">
+                  {pred.structured_formatting?.main_text || pred.description}
+                </p>
+                {pred.structured_formatting?.secondary_text && (
+                  <p className="text-xs text-slate-400 truncate mt-0.5">{pred.structured_formatting.secondary_text}</p>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label: string;
 }

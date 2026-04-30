@@ -146,57 +146,170 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
+    const routePolylineRef = useRef<any>(null);
+    const animFrameRef = useRef<number | null>(null);
+    const prevLocationRef = useRef<{ lat: number, lng: number } | null>(null);
+    const lastEtaCalcRef = useRef<number>(0);
     const [driverLocation, setDriverLocation] = useState<{ lat: number, lng: number } | null>(null);
+    const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+
+    const calculateBearing = (from: { lat: number, lng: number }, to: { lat: number, lng: number }): number => {
+        const lat1 = from.lat * Math.PI / 180;
+        const lat2 = to.lat * Math.PI / 180;
+        const dLng = (to.lng - from.lng) * Math.PI / 180;
+        const y = Math.sin(dLng) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+        return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    };
+
+    const animateMarkerTo = (from: { lat: number, lng: number }, to: { lat: number, lng: number }, bearing: number) => {
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        const startTime = performance.now();
+        const duration = 2500;
+
+        const step = (now: number) => {
+            const raw = Math.min((now - startTime) / duration, 1);
+            const t = 1 - Math.pow(1 - raw, 3); // ease-out cubic
+
+            const lat = from.lat + (to.lat - from.lat) * t;
+            const lng = from.lng + (to.lng - from.lng) * t;
+
+            if (markerRef.current) {
+                markerRef.current.position = { lat, lng };
+                if (markerRef.current.content) {
+                    markerRef.current.content.style.transform = `rotate(${bearing}deg)`;
+                }
+            }
+
+            if (raw < 1) animFrameRef.current = requestAnimationFrame(step);
+        };
+        animFrameRef.current = requestAnimationFrame(step);
+    };
+
+    const drawPlannedRoute = (map: any) => {
+        if (!window.google) return;
+        const directionsService = new window.google.maps.DirectionsService();
+        directionsService.route(
+            { origin: trip.origin, destination: trip.destination, travelMode: window.google.maps.TravelMode.DRIVING },
+            (result: any, status: string) => {
+                if (status === 'OK' && result?.routes?.[0]) {
+                    if (routePolylineRef.current) routePolylineRef.current.setMap(null);
+                    routePolylineRef.current = new window.google.maps.Polyline({
+                        path: result.routes[0].overview_path,
+                        strokeColor: '#818cf8',
+                        strokeWeight: 5,
+                        strokeOpacity: 0.5,
+                        map,
+                    });
+                }
+            }
+        );
+    };
+
+    const updateETA = (driverPos: { lat: number, lng: number }) => {
+        const now = Date.now();
+        if (now - lastEtaCalcRef.current < 60000) return; // throttle to once per minute
+        lastEtaCalcRef.current = now;
+        if (!window.google) return;
+        const service = new window.google.maps.DistanceMatrixService();
+        service.getDistanceMatrix(
+            {
+                origins: [driverPos],
+                destinations: [trip.destination],
+                travelMode: window.google.maps.TravelMode.DRIVING,
+            },
+            (response: any, status: string) => {
+                if (status === 'OK') {
+                    const element = response.rows?.[0]?.elements?.[0];
+                    if (element?.status === 'OK' && element.duration) {
+                        setEtaMinutes(Math.ceil(element.duration.value / 60));
+                    }
+                }
+            }
+        );
+    };
 
     useEffect(() => {
         if (!mapRef.current || !window.google) return;
 
         const map = new window.google.maps.Map(mapRef.current, {
-            center: { lat: -34.6037, lng: -58.3816 }, // default
-            zoom: 15,
-            mapId: "LIVE_TRACKING_MAP",
+            center: { lat: -34.6037, lng: -58.3816 },
+            zoom: 14,
+            mapId: 'LIVE_TRACKING_MAP',
             disableDefaultUI: true,
+            gestureHandling: 'cooperative',
         });
         mapInstanceRef.current = map;
 
-        window.google.maps.importLibrary("marker").then(({ AdvancedMarkerElement }: any) => {
-            const pinIcon = document.createElement('div');
-            pinIcon.innerHTML = `<div style="background-color: #f59e0b; padding: 8px; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid white;"><svg style="width: 24px; height: 24px; color: white;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>`;
-            markerRef.current = new AdvancedMarkerElement({
-                map,
-                content: pinIcon,
-            });
+        drawPlannedRoute(map);
+
+        window.google.maps.importLibrary('marker').then(({ AdvancedMarkerElement }: any) => {
+            const iconEl = document.createElement('div');
+            iconEl.style.cssText = 'transition: transform 0.6s ease; transform-origin: center;';
+            iconEl.innerHTML = `
+                <div style="background-color:#f59e0b;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:2px solid white;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                        <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                </div>`;
+            markerRef.current = new AdvancedMarkerElement({ map, content: iconEl });
         });
 
-        const channel = supabase.channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } })
+        const channel = supabase
+            .channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } })
             .on('broadcast', { event: 'location' }, (payload) => {
-                if (payload.payload) {
-                    const { lat, lng } = payload.payload as { lat: number, lng: number };
-                    setDriverLocation({ lat, lng });
-                    if (mapInstanceRef.current) {
-                        mapInstanceRef.current.panTo({ lat, lng });
-                    }
-                    if (markerRef.current) {
-                        markerRef.current.position = { lat, lng };
-                    }
+                if (!payload.payload) return;
+                const { lat, lng } = payload.payload as { lat: number, lng: number };
+                const newPos = { lat, lng };
+
+                setDriverLocation(newPos);
+                mapInstanceRef.current?.panTo(newPos);
+
+                const prev = prevLocationRef.current;
+                if (prev) {
+                    const bearing = calculateBearing(prev, newPos);
+                    animateMarkerTo(prev, newPos, bearing);
+                } else if (markerRef.current) {
+                    markerRef.current.position = newPos;
                 }
+
+                prevLocationRef.current = newPos;
+                updateETA(newPos);
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
-    }, [trip.id]);
+        return () => {
+            supabase.removeChannel(channel);
+            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+            if (routePolylineRef.current) routePolylineRef.current.setMap(null);
+        };
+    }, [trip.id, trip.origin, trip.destination]);
 
     return (
-        <div className="mt-4 aspect-video bg-slate-900/50 rounded-lg overflow-hidden border-2 border-amber-500 relative shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-            <div ref={mapRef} className="w-full h-full"></div>
-            <div className="absolute top-4 left-4 bg-slate-900/90 text-amber-400 px-4 py-1.5 rounded-full text-sm font-bold border border-amber-500 flex items-center gap-3 backdrop-blur-md">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span> GPS DE FLETERO EN VIVO
+        <div className="mt-4 rounded-xl overflow-hidden border-2 border-amber-500 relative shadow-[0_0_20px_rgba(245,158,11,0.2)]" style={{ height: '320px' }}>
+            <div ref={mapRef} className="w-full h-full" />
+
+            {/* Live badge */}
+            <div className="absolute top-3 left-3 bg-slate-900/90 text-amber-400 px-3 py-1.5 rounded-full text-xs font-bold border border-amber-500/70 flex items-center gap-2 backdrop-blur-md">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                EN VIVO
             </div>
+
+            {/* ETA badge */}
+            {etaMinutes !== null && (
+                <div className="absolute top-3 right-3 bg-slate-900/90 text-emerald-300 px-3 py-1.5 rounded-full text-xs font-bold border border-emerald-500/40 backdrop-blur-md flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    ~{etaMinutes} min
+                </div>
+            )}
+
+            {/* Waiting overlay */}
             {!driverLocation && (
-                <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center backdrop-blur-sm">
-                    <p className="text-slate-200 text-sm font-semibold animate-pulse flex items-center gap-2">
-                        <Spinner /> Esperando señal satelital...
-                    </p>
+                <div className="absolute inset-0 bg-slate-900/65 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+                    <Spinner />
+                    <p className="text-slate-200 text-sm font-semibold">Esperando señal del fletero...</p>
                 </div>
             )}
         </div>
