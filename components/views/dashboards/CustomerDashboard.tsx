@@ -284,46 +284,38 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
         setIsCalculatingRoute(true);
         try {
-            const { Route } = await window.google.maps.importLibrary("routes") as any;
-            const { encoding } = await window.google.maps.importLibrary("geometry") as any;
-
-            const originLatLng = { latitude: originReq.lat(), longitude: originReq.lng() };
-            const destLatLng = { latitude: destReq.lat(), longitude: destReq.lng() };
-
-            const { routes } = await Route.computeRoutes({
-                origin: { location: { latLng: originLatLng } },
-                destination: { location: { latLng: destLatLng } },
-                travelMode: window.google.maps.TravelMode.DRIVING,
-                routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-                fields: [
-                    'routes.distanceMeters',
-                    'routes.duration',
-                    'routes.polyline.encodedPolyline',
-                    'routes.viewport'
-                ]
+            const toLiteral = (loc: any) => ({
+                lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
+                lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
             });
 
-            if (routes && routes.length > 0) {
-                const route = routes[0];
+            const directionsService = new window.google.maps.DirectionsService();
+            const result = await new Promise<any>((resolve, reject) => {
+                directionsService.route(
+                    {
+                        origin: toLiteral(originReq),
+                        destination: toLiteral(destReq),
+                        travelMode: window.google.maps.TravelMode.DRIVING,
+                    },
+                    (res: any, status: string) => {
+                        if (status === 'OK') resolve(res);
+                        else reject(new Error(`DirectionsService: ${status}`));
+                    }
+                );
+            });
 
-                if (polylineRef.current && route.polyline?.encodedPolyline) {
-                    const decodedPath = encoding.decodePath(route.polyline.encodedPolyline);
-                    polylineRef.current.setPath(decodedPath);
-                }
+            const leg = result.routes[0].legs[0];
+            const distanceKm = leg.distance.value / 1000;
+            const driveTimeMin = Math.round(leg.duration.value / 60);
 
-                const distanceKm = route.distanceMeters / 1000;
-                const driveTimeMin = Math.round(parseInt(route.duration) / 60);
+            if (polylineRef.current && result.routes[0].overview_path) {
+                polylineRef.current.setPath(result.routes[0].overview_path);
+            }
 
-                setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
+            setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
 
-                if (mapInstanceRef.current && route.viewport?.low && route.viewport?.high) {
-                    const bounds = new window.google.maps.LatLngBounds();
-                    bounds.extend(new window.google.maps.LatLng(route.viewport.low.lat, route.viewport.low.lng));
-                    bounds.extend(new window.google.maps.LatLng(route.viewport.high.lat, route.viewport.high.lng));
-                    mapInstanceRef.current.fitBounds(bounds);
-                }
-            } else {
-                throw new Error('No routes returned');
+            if (mapInstanceRef.current && result.routes[0].bounds) {
+                mapInstanceRef.current.fitBounds(result.routes[0].bounds);
             }
         } catch (error) {
             console.error('Error calculating route:', error);
