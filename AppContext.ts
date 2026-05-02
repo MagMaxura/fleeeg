@@ -27,6 +27,7 @@ export interface AppContextType {
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   loginUser: (email: string, password: string) => Promise<SimpleAuthError | null>;
+  resetPassword: (email: string) => Promise<SimpleAuthError | null>;
   // FIX: Corrected the type of `newUser` from the `Row` type (`Omit<Profile, 'id'>`) to the semantically correct `Insert` type. This is the key fix to resolve the client-wide type inference failure.
   registerUser: (
     newUser: ProfileInsert, 

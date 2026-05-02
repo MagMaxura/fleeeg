@@ -411,6 +411,13 @@ const App: React.FC = () => {
     return error;
   }, []);
 
+  const resetPassword = useCallback<AppContextType['resetPassword']>(async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    return error || null;
+  }, []);
+
   // This helper now uses an Edge Function to upload files, bypassing client-side RLS.
   const uploadImage = async (file: File, path: string, bucket: 'foto-perfil' | 'vehicle-photos' | 'cargo-photos'): Promise<string> => {
     const formData = new FormData();
@@ -471,8 +478,14 @@ const App: React.FC = () => {
       email: newUser.email!,
       password,
     });
-    if (signUpError) return signUpError;
-    if (!signUpData.user) return { name: 'UserError', message: 'Could not create user' };
+    if (signUpError) {
+      const msg = signUpError.message?.toLowerCase() || '';
+      if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('email address is already registered')) {
+        return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
+      }
+      return signUpError;
+    }
+    if (!signUpData.user) return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
 
     const userId = signUpData.user.id;
     // We remove email because Supabase handles this via the trigger from auth.users
@@ -1103,6 +1116,7 @@ const App: React.FC = () => {
     view,
     setView,
     loginUser,
+    resetPassword,
     registerUser,
     updateUserProfile,
     createTrip,
@@ -1133,7 +1147,7 @@ const App: React.FC = () => {
     updateUserRole,
     extractCardData
   }), [
-    user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, registerUser,
+    user, users, trips, reviews, offers, isDataLoading, view, setView, loginUser, resetPassword, registerUser,
     updateUserProfile, createTrip, updateTrip, deleteTrip, rejectTrip, placeOffer, acceptOffer, loadTrip, startTrip, completeTrip, processPayment,
     viewTripDetails, sendChatMessage, submitReview, viewDriverProfile, logout,
     activeDriverId, userLocation, locationPermissionStatus, requestLocationPermission, sessionRejectedTripIds, addRejectedTripId,

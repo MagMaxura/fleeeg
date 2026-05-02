@@ -287,9 +287,12 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             const { Route } = await window.google.maps.importLibrary("routes") as any;
             const { encoding } = await window.google.maps.importLibrary("geometry") as any;
 
+            const originLatLng = { lat: originReq.lat(), lng: originReq.lng() };
+            const destLatLng = { lat: destReq.lat(), lng: destReq.lng() };
+
             const { routes } = await Route.computeRoutes({
-                origin: { location: { latLng: originReq } },
-                destination: { location: { latLng: destReq } },
+                origin: { location: { latLng: originLatLng } },
+                destination: { location: { latLng: destLatLng } },
                 travelMode: window.google.maps.TravelMode.DRIVING,
                 routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
                 fields: [

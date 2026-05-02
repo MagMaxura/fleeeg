@@ -466,7 +466,20 @@ const OnboardingView: React.FC = () => {
                 </div>
             )}
 
-            {error && <p className="text-sm text-red-400 bg-red-400/10 p-3 rounded-lg border border-red-400/20 text-center">{error}</p>}
+            {error && (
+              <div className="text-sm text-red-400 bg-red-400/10 p-3 rounded-lg border border-red-400/20 text-center space-y-2">
+                <p>{error}</p>
+                {error.includes('ya tiene una cuenta') && (
+                  <button
+                    type="button"
+                    onClick={() => context?.setView('login')}
+                    className="text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                  >
+                    Ir a Iniciar Sesión
+                  </button>
+                )}
+              </div>
+            )}
             
             <div className="pt-6 flex gap-3">
                 {step > 1 && <Button type="button" variant="secondary" onClick={prevStep} className="flex-1">Atrás</Button>}
