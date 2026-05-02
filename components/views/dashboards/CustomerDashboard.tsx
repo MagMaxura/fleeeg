@@ -287,8 +287,8 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             const { Route } = await window.google.maps.importLibrary("routes") as any;
             const { encoding } = await window.google.maps.importLibrary("geometry") as any;
 
-            const originLatLng = { lat: originReq.lat(), lng: originReq.lng() };
-            const destLatLng = { lat: destReq.lat(), lng: destReq.lng() };
+            const originLatLng = { latitude: originReq.lat(), longitude: originReq.lng() };
+            const destLatLng = { latitude: destReq.lat(), longitude: destReq.lng() };
 
             const { routes } = await Route.computeRoutes({
                 origin: { location: { latLng: originLatLng } },
