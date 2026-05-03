@@ -477,6 +477,9 @@ const App: React.FC = () => {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: newUser.email!,
       password,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
     });
     if (signUpError) {
       const msg = signUpError.message?.toLowerCase() || '';
