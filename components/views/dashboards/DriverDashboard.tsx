@@ -1,8 +1,66 @@
-import React, { useContext, useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useContext, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 import type { Trip } from '../../../src/types.ts';
 import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
 import { supabase } from '../../../services/supabaseService.ts';
+
+// --- Offer Mini Chat ---
+const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialNote?: string | null }> = ({ offerId, currentUserId, initialNote }) => {
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        supabase.from('offer_messages' as any).select('*').eq('offer_id', offerId).order('created_at', { ascending: true })
+            .then(({ data }) => setMessages(data || []));
+        const channel = supabase.channel(`offer_chat_${offerId}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'offer_messages', filter: `offer_id=eq.${offerId}` },
+                (payload) => setMessages(prev => [...prev, payload.new]))
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [offerId]);
+
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim()) return;
+        setIsSending(true);
+        await (supabase.from('offer_messages' as any) as any).insert({ offer_id: offerId, sender_id: currentUserId, content: newMessage.trim() });
+        setNewMessage('');
+        setIsSending(false);
+    };
+
+    return (
+        <div className="mt-3 border-t border-slate-800 pt-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Conversación</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {initialNote && (
+                    <div className="flex justify-end">
+                        <div className="bg-amber-600/80 text-white rounded-2xl rounded-br-none px-3 py-2 text-sm max-w-[75%]">{initialNote}</div>
+                    </div>
+                )}
+                {messages.map(msg => {
+                    const isMe = msg.sender_id === currentUserId;
+                    return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isMe ? 'bg-amber-600/80 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
+                                {msg.content}
+                            </div>
+                        </div>
+                    );
+                })}
+                <div ref={messagesEndRef} />
+            </div>
+            <form onSubmit={handleSend} className="flex gap-2 mt-2">
+                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribir mensaje..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors" />
+                <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
+            </form>
+        </div>
+    );
+};
 
 // --- Utility Functions ---
 
@@ -483,9 +541,8 @@ const DriverDashboard: React.FC = () => {
                                                         </div>
                                                         <p className="text-lg font-bold text-amber-400 whitespace-nowrap">${offer.price?.toLocaleString()}</p>
                                                     </div>
-                                                    <div className="border-t border-slate-800 my-3"></div>
-                                                    <div className="flex justify-between items-center">
-                                                        <p className="text-sm text-slate-400">Oferta enviada. Esperando respuesta.</p>
+                                                    <OfferMiniChat offerId={offer.id} currentUserId={user?.id || ''} initialNote={offer.notes} />
+                                                    <div className="border-t border-slate-800 mt-3 pt-3 flex justify-end">
                                                         <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="ghost">Ver Viaje</Button>
                                                     </div>
                                                 </Card>

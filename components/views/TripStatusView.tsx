@@ -576,6 +576,88 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
     const showReviewSubmitted = user?.role === 'customer' && trip.status === 'paid' && hasAlreadyReviewed;
     const showOffers = user?.role === 'customer' && trip.status === 'requested';
 
+    const OfferChat: React.FC<{ offer: Offer; driver: Driver }> = ({ offer, driver }) => {
+        const [messages, setMessages] = useState<any[]>([]);
+        const [newMessage, setNewMessage] = useState('');
+        const [isSending, setIsSending] = useState(false);
+        const messagesEndRef = useRef<HTMLDivElement>(null);
+
+        useEffect(() => {
+            supabase
+                .from('offer_messages')
+                .select('*')
+                .eq('offer_id', offer.id)
+                .order('created_at', { ascending: true })
+                .then(({ data }) => setMessages(data || []));
+
+            const channel = supabase.channel(`offer_chat_${offer.id}`)
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'offer_messages', filter: `offer_id=eq.${offer.id}` },
+                    (payload) => setMessages(prev => [...prev, payload.new])
+                )
+                .subscribe();
+
+            return () => { supabase.removeChannel(channel); };
+        }, [offer.id]);
+
+        useEffect(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, [messages]);
+
+        const handleSend = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!newMessage.trim() || !user) return;
+            setIsSending(true);
+            await (supabase.from('offer_messages' as any) as any).insert({
+                offer_id: offer.id,
+                sender_id: user.id,
+                content: newMessage.trim(),
+            });
+            setNewMessage('');
+            setIsSending(false);
+        };
+
+        const avatarUrl = driver.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.full_name)}&background=0f172a&color=fff&size=32`;
+
+        return (
+            <div className="mt-4 border-t border-slate-800 pt-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Conversación</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {offer.notes && (
+                        <div className="flex gap-2 items-end">
+                            <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                            <div className="bg-slate-800 rounded-2xl rounded-bl-none px-3 py-2 text-sm text-slate-200 max-w-[75%]">
+                                {offer.notes}
+                            </div>
+                        </div>
+                    )}
+                    {messages.map(msg => {
+                        const isDriver = msg.sender_id === offer.driver_id;
+                        return (
+                            <div key={msg.id} className={`flex gap-2 items-end ${isDriver ? '' : 'flex-row-reverse'}`}>
+                                {isDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
+                                <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isDriver ? 'bg-slate-800 text-slate-200 rounded-bl-none' : 'bg-amber-600/80 text-white rounded-br-none'}`}>
+                                    {msg.content}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <div ref={messagesEndRef} />
+                </div>
+                <form onSubmit={handleSend} className="flex gap-2 mt-3">
+                    <input
+                        type="text"
+                        value={newMessage}
+                        onChange={e => setNewMessage(e.target.value)}
+                        placeholder="Responder al fletero..."
+                        className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+                    />
+                    <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
+                </form>
+            </div>
+        );
+    };
+
     const OfferCard: React.FC<{ offer: Offer }> = ({ offer }) => {
         const driver = context.users.find(u => u.id === offer.driver_id) as Driver | undefined;
         const [isAccepting, setIsAccepting] = useState(false);
@@ -585,26 +667,18 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
         const handleAcceptOffer = async () => {
             setIsAccepting(true);
             await context.acceptOffer(offer.id);
-            // isAccepting will stay true as the component unmounts
         };
 
         return (
             <Card className="bg-slate-900/40">
-                <div className="flex flex-col sm:flex-row items-start gap-4">
-                    <img src={driver.photo_url || undefined} alt={driver.full_name} className="w-16 h-16 rounded-full object-cover border-2 border-slate-700" />
-                    <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="font-bold text-slate-100 text-lg">{driver.full_name}</p>
-                                <div className="flex items-center gap-2">
-                                    {/* Add star rating here if available */}
-                                </div>
-                            </div>
-                            <p className="text-2xl font-bold text-amber-400">${offer.price.toLocaleString()}</p>
-                        </div>
-                        {offer.notes && <blockquote className="mt-2 text-slate-300 italic border-l-2 border-slate-700 pl-3 text-sm">"{offer.notes}"</blockquote>}
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <img src={driver.photo_url || undefined} alt={driver.full_name} className="w-14 h-14 rounded-full object-cover border-2 border-slate-700" />
+                        <p className="font-bold text-slate-100 text-lg">{driver.full_name}</p>
                     </div>
+                    <p className="text-2xl font-bold text-amber-400 whitespace-nowrap">${offer.price.toLocaleString()}</p>
                 </div>
+                <OfferChat offer={offer} driver={driver as Driver} />
                 <div className="mt-4 flex justify-end gap-2">
                     <Button onClick={() => context.viewDriverProfile(driver.id)} variant="secondary" size="sm">Ver Perfil</Button>
                     <Button onClick={handleAcceptOffer} isLoading={isAccepting} size="sm">Aceptar Oferta</Button>
