@@ -3,6 +3,7 @@ import { AppContext } from '../../../AppContext.ts';
 import type { Trip } from '../../../src/types.ts';
 import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../../ui.tsx';
 import { supabase } from '../../../services/supabaseService.ts';
+import { createNotification } from '../../../services/notificationService.ts';
 
 // --- Offer Mini Chat ---
 const PriceUpdateBubble: React.FC<{ price: number; isMe: boolean }> = ({ price, isMe }) => (
@@ -18,7 +19,7 @@ const PriceUpdateBubble: React.FC<{ price: number; isMe: boolean }> = ({ price, 
     </div>
 );
 
-const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialNote?: string | null; isDriver: boolean }> = ({ offerId, currentUserId, initialNote, isDriver }) => {
+const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; recipientId: string; initialNote?: string | null; isDriver: boolean }> = ({ offerId, currentUserId, recipientId, initialNote, isDriver }) => {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -42,9 +43,16 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialN
         e.preventDefault();
         if (!newMessage.trim()) return;
         setIsSending(true);
+        const content = newMessage.trim();
         await (supabase.from('offer_messages' as any) as any).insert({
-            offer_id: offerId, sender_id: currentUserId, content: newMessage.trim(), message_type: 'text'
+            offer_id: offerId, sender_id: currentUserId, content, message_type: 'text'
         });
+        createNotification(
+            recipientId,
+            `Mensaje del fletero 💬`,
+            content.length > 60 ? content.substring(0, 57) + '...' : content,
+            'offer_message'
+        );
         setNewMessage('');
         setIsSending(false);
     };
@@ -62,6 +70,12 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialN
             }),
             (supabase.from('offers') as any).update({ price }).eq('id', offerId),
         ]);
+        createNotification(
+            recipientId,
+            'Nueva cotización recibida 💰',
+            `El fletero actualizó su precio a $${price.toLocaleString()}.`,
+            'new_offer'
+        );
         setNewPrice('');
         setShowPriceInput(false);
         setIsSending(false);
@@ -600,7 +614,7 @@ const DriverDashboard: React.FC = () => {
                                                         </div>
                                                         <p className="text-lg font-bold text-amber-400 whitespace-nowrap">${offer.price?.toLocaleString()}</p>
                                                     </div>
-                                                    <OfferMiniChat offerId={offer.id} currentUserId={user?.id || ''} initialNote={offer.notes} isDriver={true} />
+                                                    <OfferMiniChat offerId={offer.id} currentUserId={user?.id || ''} recipientId={trip.customer_id} initialNote={offer.notes} isDriver={true} />
                                                     <div className="border-t border-slate-800 mt-3 pt-3 flex justify-end">
                                                         <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="ghost">Ver Viaje</Button>
                                                     </div>

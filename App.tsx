@@ -8,9 +8,11 @@ import { AppContext } from './AppContext';
 import type { AppContextType } from './AppContext';
 import { supabase } from './services/supabaseService';
 import PushNotificationManager from './components/PushNotificationManager';
+import NotificationBell from './components/NotificationBell';
 
 // Services
 import { getDriverEta } from './services/geminiService';
+import { createNotification } from './services/notificationService';
 
 // UI Components
 // FIX: Added Button import for use in the Header component.
@@ -764,6 +766,12 @@ const App: React.FC = () => {
         `${currentUser.full_name} ha enviado una oferta de $${price} para tu viaje.`,
         `/trip/${tripId}`
       );
+      createNotification(
+        trip.customer_id,
+        'Nueva oferta recibida 💰',
+        `${currentUser.full_name} ofreció $${price.toLocaleString()} para tu viaje.`,
+        'new_offer', tripId
+      );
     }
     return null;
 
@@ -839,6 +847,12 @@ const App: React.FC = () => {
       `${currentUser.full_name} ha aceptado tu oferta. ¡Buen viaje!`,
       `/trip/${tripId}`
     );
+    createNotification(
+      offerToAccept.driver_id,
+      '¡Oferta aceptada! ✅',
+      `${currentUser.full_name} aceptó tu oferta de $${offerToAccept.price.toLocaleString()}.`,
+      'offer_accepted', tripId, offerId
+    );
 
   }, [users]);
 
@@ -848,7 +862,13 @@ const App: React.FC = () => {
 
     const updatePayload: TripUpdate = { status: 'loading' as const };
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
-    if (error) console.error("Error loading trip:", error);
+    if (error) { console.error("Error loading trip:", error); return; }
+
+    const trip = tripsRef.current.find(t => t.id === tripId);
+    if (trip?.driver_id) {
+      createNotification(trip.driver_id, 'Cliente listo para cargar 📦',
+        'El cliente confirmó tu llegada. ¡Comenzá a cargar!', 'trip_status', tripId);
+    }
   }, []);
 
   const startTrip = useCallback<AppContextType['startTrip']>(async (tripId) => {
@@ -861,8 +881,13 @@ const App: React.FC = () => {
     };
 
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
+    if (error) { console.error("Error starting trip:", error); return; }
 
-    if (error) console.error("Error starting trip:", error);
+    const trip = tripsRef.current.find(t => t.id === tripId);
+    if (trip?.driver_id) {
+      createNotification(trip.driver_id, '¡Viaje iniciado! 🚛',
+        'El cliente inició el seguimiento GPS. ¡En camino al destino!', 'trip_status', tripId);
+    }
   }, []);
 
   const completeTrip = useCallback<AppContextType['completeTrip']>(async (tripId) => {
@@ -895,15 +920,24 @@ const App: React.FC = () => {
         final_price: recalculatedFinalPrice,
       };
       const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
+      if (error) { console.error("Error completing trip:", error); return; }
 
-      if (error) console.error("Error completing trip:", error);
+      createNotification(trip.customer_id, '¡Viaje completado! 🎉',
+        `Tu viaje llegó al destino. Precio final: $${recalculatedFinalPrice.toLocaleString()}. ¡Podés realizar el pago!`,
+        'trip_status', tripId);
     }
   }, []);
 
   const processPayment = useCallback<AppContextType['processPayment']>(async (tripId) => {
     const updatePayload: Partial<TripUpdate> = { status: 'paid' as const };
     const { error } = await supabase.from('trips').update(updatePayload).eq('id', tripId);
-    if (error) console.error("Error processing payment:", error);
+    if (error) { console.error("Error processing payment:", error); return; }
+
+    const trip = tripsRef.current.find(t => t.id === tripId);
+    if (trip?.driver_id) {
+      createNotification(trip.driver_id, '¡Pago recibido! 💵',
+        'El cliente realizó el pago del viaje. Revisá tu billetera.', 'trip_status', tripId);
+    }
   }, []);
 
   const sendChatMessage = useCallback<AppContextType['sendChatMessage']>(async (tripId, content) => {
@@ -922,11 +956,18 @@ const App: React.FC = () => {
       if (trip) {
         const recipientId = currentUser.id === trip.customer_id ? trip.driver_id : trip.customer_id;
         if (recipientId) {
+          const shortContent = content.length > 50 ? content.substring(0, 47) + '...' : content;
           sendPushNotification(
             recipientId,
             `Mensaje de ${(currentUser.full_name || 'Usuario').split(' ')[0]}`,
-            content.length > 50 ? content.substring(0, 47) + '...' : content,
+            shortContent,
             `/trip/${tripId}`
+          );
+          createNotification(
+            recipientId,
+            `Mensaje de ${(currentUser.full_name || 'Usuario').split(' ')[0]} 💬`,
+            shortContent,
+            'chat_message', tripId
           );
         }
       }
@@ -1188,6 +1229,7 @@ const App: React.FC = () => {
                   <Button onClick={() => setView('rankings')} variant="ghost" size="sm">Ranking</Button>
                   <Button onClick={() => setView('profile')} variant="ghost" size="sm">Mi Perfil</Button>
                 </div>
+                <NotificationBell userId={user.id} onTripClick={viewTripDetails} />
                 <Button onClick={logout} variant="secondary" size="sm" isLoading={isLoading}>Salir</Button>
               </div>
             ) : (

@@ -6,6 +6,7 @@ import type { View } from '../../src/types.ts';
 import type { Trip, TripStatus, ChatMessage, Offer, Driver } from '../../src/types.ts';
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
 import { supabase } from '../../services/supabaseService.ts';
+import { createNotification } from '../../services/notificationService.ts';
 
 
 
@@ -608,11 +609,19 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
             e.preventDefault();
             if (!newMessage.trim() || !user) return;
             setIsSending(true);
+            const content = newMessage.trim();
             await (supabase.from('offer_messages' as any) as any).insert({
                 offer_id: offer.id,
                 sender_id: user.id,
-                content: newMessage.trim(),
+                content,
+                message_type: 'text',
             });
+            createNotification(
+                offer.driver_id,
+                `Mensaje de ${(user.full_name || 'Cliente').split(' ')[0]} 💬`,
+                content.length > 60 ? content.substring(0, 57) + '...' : content,
+                'offer_message', offer.trip_id, offer.id
+            );
             setNewMessage('');
             setIsSending(false);
         };
