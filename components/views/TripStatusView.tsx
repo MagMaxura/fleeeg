@@ -632,11 +632,26 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                         </div>
                     )}
                     {messages.map(msg => {
-                        const isDriver = msg.sender_id === offer.driver_id;
+                        const isMsgDriver = msg.sender_id === offer.driver_id;
+                        if (msg.message_type === 'price_update') {
+                            return (
+                                <div key={msg.id} className={`flex ${isMsgDriver ? 'justify-start gap-2 items-end' : 'justify-end'}`}>
+                                    {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
+                                    <div className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] border ${isMsgDriver ? 'bg-emerald-500/10 border-emerald-500/40 rounded-bl-none' : 'bg-amber-500/10 border-amber-500/40 rounded-br-none'}`}>
+                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isMsgDriver ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                            Nueva cotización recibida
+                                        </p>
+                                        <p className={`text-xl font-bold ${isMsgDriver ? 'text-emerald-300' : 'text-amber-300'}`}>
+                                            ${Number(msg.new_price).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        }
                         return (
-                            <div key={msg.id} className={`flex gap-2 items-end ${isDriver ? '' : 'flex-row-reverse'}`}>
-                                {isDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
-                                <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isDriver ? 'bg-slate-800 text-slate-200 rounded-bl-none' : 'bg-amber-600/80 text-white rounded-br-none'}`}>
+                            <div key={msg.id} className={`flex gap-2 items-end ${isMsgDriver ? '' : 'flex-row-reverse'}`}>
+                                {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
+                                <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isMsgDriver ? 'bg-slate-800 text-slate-200 rounded-bl-none' : 'bg-amber-600/80 text-white rounded-br-none'}`}>
                                     {msg.content}
                                 </div>
                             </div>

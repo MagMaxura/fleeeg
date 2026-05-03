@@ -5,10 +5,25 @@ import { Button, Card, Icon, Spinner, SkeletonCard, Input, TextArea } from '../.
 import { supabase } from '../../../services/supabaseService.ts';
 
 // --- Offer Mini Chat ---
-const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialNote?: string | null }> = ({ offerId, currentUserId, initialNote }) => {
+const PriceUpdateBubble: React.FC<{ price: number; isMe: boolean }> = ({ price, isMe }) => (
+    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+        <div className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] border ${isMe ? 'bg-amber-500/10 border-amber-500/40 rounded-br-none' : 'bg-emerald-500/10 border-emerald-500/40 rounded-bl-none'}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isMe ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {isMe ? 'Nueva cotización enviada' : 'Nueva cotización recibida'}
+            </p>
+            <p className={`text-xl font-bold ${isMe ? 'text-amber-300' : 'text-emerald-300'}`}>
+                ${price.toLocaleString()}
+            </p>
+        </div>
+    </div>
+);
+
+const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialNote?: string | null; isDriver: boolean }> = ({ offerId, currentUserId, initialNote, isDriver }) => {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [showPriceInput, setShowPriceInput] = useState(false);
+    const [newPrice, setNewPrice] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -27,8 +42,28 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialN
         e.preventDefault();
         if (!newMessage.trim()) return;
         setIsSending(true);
-        await (supabase.from('offer_messages' as any) as any).insert({ offer_id: offerId, sender_id: currentUserId, content: newMessage.trim() });
+        await (supabase.from('offer_messages' as any) as any).insert({
+            offer_id: offerId, sender_id: currentUserId, content: newMessage.trim(), message_type: 'text'
+        });
         setNewMessage('');
+        setIsSending(false);
+    };
+
+    const handleSendPrice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const price = Number(newPrice.replace(/\D/g, ''));
+        if (!price || price <= 0) return;
+        setIsSending(true);
+        await Promise.all([
+            (supabase.from('offer_messages' as any) as any).insert({
+                offer_id: offerId, sender_id: currentUserId,
+                content: `Nueva cotización: $${price.toLocaleString()}`,
+                message_type: 'price_update', new_price: price,
+            }),
+            (supabase.from('offers') as any).update({ price }).eq('id', offerId),
+        ]);
+        setNewPrice('');
+        setShowPriceInput(false);
         setIsSending(false);
     };
 
@@ -43,6 +78,9 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialN
                 )}
                 {messages.map(msg => {
                     const isMe = msg.sender_id === currentUserId;
+                    if (msg.message_type === 'price_update') {
+                        return <PriceUpdateBubble key={msg.id} price={msg.new_price} isMe={isMe} />;
+                    }
                     return (
                         <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isMe ? 'bg-amber-600/80 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
@@ -53,11 +91,32 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; initialN
                 })}
                 <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={handleSend} className="flex gap-2 mt-2">
-                <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribir mensaje..."
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors" />
-                <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
-            </form>
+
+            {showPriceInput ? (
+                <form onSubmit={handleSendPrice} className="mt-2 space-y-2">
+                    <div className="flex gap-2">
+                        <input type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)}
+                            placeholder="Nuevo precio ej: 75000" min="1"
+                            className="flex-1 bg-slate-800 border border-amber-500/50 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors" />
+                        <Button type="submit" isLoading={isSending} disabled={!newPrice} size="sm">Confirmar</Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => setShowPriceInput(false)}>Cancelar</Button>
+                    </div>
+                </form>
+            ) : (
+                <div className="mt-2 space-y-2">
+                    <form onSubmit={handleSend} className="flex gap-2">
+                        <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribir mensaje..."
+                            className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors" />
+                        <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
+                    </form>
+                    {isDriver && (
+                        <button type="button" onClick={() => setShowPriceInput(true)}
+                            className="w-full text-xs text-amber-400 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/40 rounded-xl py-1.5 transition-colors">
+                            💰 Enviar nueva cotización
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -541,7 +600,7 @@ const DriverDashboard: React.FC = () => {
                                                         </div>
                                                         <p className="text-lg font-bold text-amber-400 whitespace-nowrap">${offer.price?.toLocaleString()}</p>
                                                     </div>
-                                                    <OfferMiniChat offerId={offer.id} currentUserId={user?.id || ''} initialNote={offer.notes} />
+                                                    <OfferMiniChat offerId={offer.id} currentUserId={user?.id || ''} initialNote={offer.notes} isDriver={true} />
                                                     <div className="border-t border-slate-800 mt-3 pt-3 flex justify-end">
                                                         <Button onClick={() => context?.viewTripDetails(trip.id)} size="sm" variant="ghost">Ver Viaje</Button>
                                                     </div>
