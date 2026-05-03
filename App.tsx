@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>('checking');
   const [sessionRejectedTripIds, setSessionRejectedTripIds] = useState<Set<number>>(new Set());
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const prevTripsRef = useRef<Trip[]>([]);
   const userRef = useRef(user); // Create a ref to hold the user state.
@@ -1120,6 +1121,38 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // --- NOTIFICATIONS ---
+  useEffect(() => {
+    if (!user?.id) { setNotifications([]); return; }
+
+    (supabase.from('notifications' as any) as any)
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }: any) => setNotifications(data || []));
+
+    const channel = supabase
+      .channel(`notifications_${user.id}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => setNotifications(prev => [payload.new as any, ...prev])
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!user?.id) return;
+    await (supabase.from('notifications' as any) as any)
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false);
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+  }, [user?.id]);
+  // --- END NOTIFICATIONS ---
+
   const extractCardData = useCallback<AppContextType['extractCardData']>(async (file) => {
     try {
       const reader = new FileReader();
@@ -1229,7 +1262,7 @@ const App: React.FC = () => {
                   <Button onClick={() => setView('rankings')} variant="ghost" size="sm">Ranking</Button>
                   <Button onClick={() => setView('profile')} variant="ghost" size="sm">Mi Perfil</Button>
                 </div>
-                <NotificationBell userId={user.id} onTripClick={viewTripDetails} />
+                <NotificationBell notifications={notifications} onMarkAllRead={markAllNotificationsRead} onTripClick={viewTripDetails} />
                 <Button onClick={logout} variant="secondary" size="sm" isLoading={isLoading}>Salir</Button>
               </div>
             ) : (

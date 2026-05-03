@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../services/supabaseService';
 
 interface Notification {
   id: string;
@@ -12,7 +11,8 @@ interface Notification {
 }
 
 interface Props {
-  userId: string;
+  notifications: Notification[];
+  onMarkAllRead: () => Promise<void>;
   onTripClick: (tripId: number) => void;
 }
 
@@ -34,31 +34,11 @@ function timeAgo(dateStr: string): string {
   return `hace ${Math.floor(hours / 24)}d`;
 }
 
-const NotificationBell: React.FC<Props> = ({ userId, onTripClick }) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+const NotificationBell: React.FC<Props> = ({ notifications, onMarkAllRead, onTripClick }) => {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
-
-  useEffect(() => {
-    (supabase.from('notifications' as any) as any)
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(30)
-      .then(({ data }: any) => setNotifications(data || []));
-
-    const channel = supabase
-      .channel(`notifications_bell_${userId}`)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-        (payload) => setNotifications(prev => [payload.new as Notification, ...prev])
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [userId]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,20 +50,11 @@ const NotificationBell: React.FC<Props> = ({ userId, onTripClick }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const markAllAsRead = useCallback(async () => {
-    if (unreadCount === 0) return;
-    await (supabase.from('notifications' as any) as any)
-      .update({ is_read: true })
-      .eq('user_id', userId)
-      .eq('is_read', false);
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-  }, [userId, unreadCount]);
-
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     const opening = !isOpen;
     setIsOpen(opening);
-    if (opening && unreadCount > 0) markAllAsRead();
-  };
+    if (opening && unreadCount > 0) onMarkAllRead();
+  }, [isOpen, unreadCount, onMarkAllRead]);
 
   const handleNotificationClick = (n: Notification) => {
     if (n.related_trip_id) onTripClick(n.related_trip_id);
@@ -112,10 +83,7 @@ const NotificationBell: React.FC<Props> = ({ userId, onTripClick }) => {
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
             <h3 className="font-bold text-slate-100 text-sm">Notificaciones</h3>
             {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
-              >
+              <button onClick={onMarkAllRead} className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
                 Marcar todo como leído
               </button>
             )}
@@ -142,9 +110,7 @@ const NotificationBell: React.FC<Props> = ({ userId, onTripClick }) => {
                     <p className="text-xs text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">{n.body}</p>
                     <p className="text-[10px] text-slate-600 mt-1">{timeAgo(n.created_at)}</p>
                   </div>
-                  {!n.is_read && (
-                    <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-2" />
-                  )}
+                  {!n.is_read && <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 mt-2" />}
                 </button>
               ))
             )}
