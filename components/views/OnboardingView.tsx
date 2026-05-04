@@ -3,6 +3,7 @@ import { AppContext } from '../../AppContext.ts';
 import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
 import { Button, Input, Card, Icon, Select, PlacePicker } from '../ui.tsx';
 import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader.ts';
+import { supabase } from '../../services/supabaseService.ts';
 
 const OnboardingView: React.FC = () => {
   const context = useContext(AppContext);
@@ -34,6 +35,8 @@ const OnboardingView: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  const [preRegisteredUserId, setPreRegisteredUserId] = useState<string | null>(null);
+  const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
 
   const [formState, setFormState] = useState<{ [key: string]: any }>({});
 
@@ -125,9 +128,9 @@ const OnboardingView: React.FC = () => {
     }
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     setError("");
-    // Basic validation per step
+
     if (step === 1) {
         if (!formState.email || !formState.password || !formState.confirmPassword) {
             setError("Completa todos los campos de cuenta.");
@@ -137,6 +140,52 @@ const OnboardingView: React.FC = () => {
             setError("Las contraseñas no coinciden.");
             return;
         }
+        if (formState.password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        // 1. Verificar si el email ya está registrado
+        const { data: emailExists, error: rpcError } = await (supabase.rpc as any)('check_email_registered', { p_email: formState.email });
+        if (rpcError) {
+            console.error('Error checking email:', rpcError);
+        } else if (emailExists) {
+            setError('Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.');
+            setIsLoading(false);
+            return;
+        }
+
+        // 2. Crear usuario en auth y enviar email de confirmación
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: formState.email,
+            password: formState.password,
+            options: { emailRedirectTo: window.location.origin },
+        });
+
+        if (signUpError) {
+            const msg = signUpError.message?.toLowerCase() || '';
+            if (msg.includes('already registered') || msg.includes('already been registered')) {
+                setError('Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.');
+            } else {
+                setError(signUpError.message || 'Error al crear la cuenta. Intentá de nuevo.');
+            }
+            setIsLoading(false);
+            return;
+        }
+
+        if (!signUpData.user) {
+            setError('Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.');
+            setIsLoading(false);
+            return;
+        }
+
+        setPreRegisteredUserId(signUpData.user.id);
+        setEmailConfirmationSent(true);
+        setIsLoading(false);
+        setStep(s => s + 1);
+        return;
     }
 
     if (role === 'driver') {
@@ -227,13 +276,14 @@ const OnboardingView: React.FC = () => {
       };
 
     const authError = await context.registerUser(
-        userToRegister as any, 
-        data.password as string, 
-        photoFile, 
+        userToRegister as any,
+        data.password as string,
+        photoFile,
         vehiclePhotoFile,
         idFrontFile,
         idBackFile,
-        licenseFile
+        licenseFile,
+        preRegisteredUserId || undefined
     );
 
     if (authError) {
@@ -482,6 +532,13 @@ const OnboardingView: React.FC = () => {
                     </div>
                     <Input name="payment_info" label="CBU / Alias para Cobros" placeholder="ej: mi.alias.banco" required onChange={handleInputChange} />
                 </div>
+            )}
+
+            {emailConfirmationSent && (
+              <div className="text-sm bg-sky-500/10 border border-sky-500/30 p-3 rounded-lg text-center space-y-1">
+                <p className="text-sky-300 font-semibold">📧 Te enviamos un email de confirmación</p>
+                <p className="text-slate-400 text-xs">Revisá tu bandeja de entrada en <span className="text-sky-400">{formState.email}</span> y confirmá tu cuenta cuando termines el registro.</p>
+              </div>
             )}
 
             {error && (

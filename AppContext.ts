@@ -30,13 +30,14 @@ export interface AppContextType {
   resetPassword: (email: string) => Promise<SimpleAuthError | null>;
   // FIX: Corrected the type of `newUser` from the `Row` type (`Omit<Profile, 'id'>`) to the semantically correct `Insert` type. This is the key fix to resolve the client-wide type inference failure.
   registerUser: (
-    newUser: ProfileInsert, 
-    password: string, 
-    photoFile: File | null, 
+    newUser: ProfileInsert,
+    password: string,
+    photoFile: File | null,
     vehiclePhotoFile: File | null,
     idFrontFile: File | null,
     idBackFile: File | null,
-    licenseFile: File | null
+    licenseFile: File | null,
+    existingUserId?: string
   ) => Promise<SimpleAuthError | null>;
   updateUserProfile: (updatedProfileData: Partial<Profile>, photoFile: File | null, vehiclePhotoFile: File | null) => Promise<SimpleAuthError | null>;
   logout: () => Promise<void>;

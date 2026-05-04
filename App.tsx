@@ -488,27 +488,31 @@ const App: React.FC = () => {
     vehiclePhotoFile,
     idFrontFile,
     idBackFile,
-    licenseFile
+    licenseFile,
+    existingUserId
   ) => {
-    // Step 1: Sign up the user in Supabase Auth. This sends the confirmation email.
-    // FIX: Added a non-null assertion `!` because `newUser` of type `ProfileInsert` has an optional `email`, but the signUp function requires it. The form guarantees it exists.
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: newUser.email!,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    if (signUpError) {
-      const msg = signUpError.message?.toLowerCase() || '';
-      if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('email address is already registered')) {
-        return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
-      }
-      return signUpError;
-    }
-    if (!signUpData.user) return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
+    let userId: string;
 
-    const userId = signUpData.user.id;
+    if (existingUserId) {
+      // Usuario ya creado en el paso 1 del formulario
+      userId = existingUserId;
+    } else {
+      // Flujo sin pre-registro: crear usuario ahora
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: newUser.email!,
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (signUpError) {
+        const msg = signUpError.message?.toLowerCase() || '';
+        if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('email address is already registered')) {
+          return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
+        }
+        return signUpError;
+      }
+      if (!signUpData.user) return { name: 'EmailExists', message: 'Este correo ya tiene una cuenta registrada. Por favor, iniciá sesión o recuperá tu contraseña.' };
+      userId = signUpData.user.id;
+    }
     // We remove email because Supabase handles this via the trigger from auth.users
     const { email, ...profileData } = newUser;
     const profileUpdatePayload: ProfileUpdate = { ...profileData };
