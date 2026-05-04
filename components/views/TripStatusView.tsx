@@ -7,6 +7,7 @@ import type { Trip, TripStatus, ChatMessage, Offer, Driver } from '../../src/typ
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
 import { supabase } from '../../services/supabaseService.ts';
 import { createNotification } from '../../services/notificationService.ts';
+import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader.ts';
 
 
 
@@ -153,6 +154,8 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
     const lastEtaCalcRef = useRef<number>(0);
     const [driverLocation, setDriverLocation] = useState<{ lat: number, lng: number } | null>(null);
     const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+    const [mapsReady, setMapsReady] = useState(false);
+    const [mapsError, setMapsError] = useState<string | null>(null);
 
     const calculateBearing = (from: { lat: number, lng: number }, to: { lat: number, lng: number }): number => {
         const lat1 = from.lat * Math.PI / 180;
@@ -231,7 +234,21 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
     };
 
     useEffect(() => {
-        if (!mapRef.current || !window.google) return;
+        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
+        if (!apiKey) {
+            setMapsError('Configura VITE_GOOGLE_MAPS_API_KEY para activar el seguimiento en mapa.');
+            return;
+        }
+        loadGoogleMapsAPI(apiKey)
+            .then(() => setMapsReady(true))
+            .catch((error) => {
+                console.error('Maps loader error in live tracking:', error);
+                setMapsError('No se pudo cargar Google Maps. Verifica la clave y las APIs habilitadas.');
+            });
+    }, []);
+
+    useEffect(() => {
+        if (!mapsReady || !mapRef.current || !window.google) return;
 
         const map = new window.google.maps.Map(mapRef.current, {
             center: { lat: -34.6037, lng: -58.3816 },
@@ -284,7 +301,7 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
             if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
             if (routePolylineRef.current) routePolylineRef.current.setMap(null);
         };
-    }, [trip.id, trip.origin, trip.destination]);
+    }, [mapsReady, trip.id, trip.origin, trip.destination]);
 
     return (
         <div className="mt-4 rounded-xl overflow-hidden border-2 border-amber-500 relative shadow-[0_0_20px_rgba(245,158,11,0.2)]" style={{ height: '320px' }}>
@@ -307,7 +324,12 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
             )}
 
             {/* Waiting overlay */}
-            {!driverLocation && (
+            {mapsError ? (
+                <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center gap-3 backdrop-blur-sm p-4 text-center">
+                    <Icon type="truck" className="w-10 h-10 text-amber-400" />
+                    <p className="text-slate-200 text-sm font-semibold">{mapsError}</p>
+                </div>
+            ) : !driverLocation && (
                 <div className="absolute inset-0 bg-slate-900/65 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
                     <Spinner />
                     <p className="text-slate-200 text-sm font-semibold">Esperando señal del fletero...</p>

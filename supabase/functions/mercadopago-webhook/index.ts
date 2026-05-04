@@ -6,11 +6,20 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 declare const Deno: any;
 
 Deno.serve(async (req: Request) => {
-  // A simplified, known-good CORS configuration to prevent preflight failures.
+  const appPublicUrl = Deno.env.get('APP_PUBLIC_URL') || 'https://fletapp.vercel.app';
+  const requestOrigin = req.headers.get('Origin') || appPublicUrl;
+  const allowedOrigins = new Set(
+    [appPublicUrl, ...(Deno.env.get('ALLOWED_WEB_ORIGINS') || '').split(',')]
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  );
+  const corsOrigin = allowedOrigins.has(requestOrigin) ? requestOrigin : appPublicUrl;
+
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
 
   // Handle CORS preflight requests.

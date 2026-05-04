@@ -37,6 +37,19 @@ const OnboardingView: React.FC = () => {
 
   const [formState, setFormState] = useState<{ [key: string]: any }>({});
 
+  useEffect(() => {
+    const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      setApiKeyMissing(true);
+      return;
+    }
+    setApiKeyMissing(false);
+    loadGoogleMapsAPI(apiKey).catch((err) => {
+      console.error('Maps loader error in onboarding:', err);
+      setApiKeyMissing(true);
+    });
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormState(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }
@@ -408,6 +421,11 @@ const OnboardingView: React.FC = () => {
                     <Input name="full_name" label="Nombre Completo" required onChange={handleInputChange} value={formState.full_name || ''} />
                     <Input name="dni" label="DNI" required onChange={handleInputChange} value={formState.dni || ''} />
                     <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} value={formState.phone || ''} />
+                    {apiKeyMissing && (
+                      <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                        La búsqueda automática de direcciones requiere configurar VITE_GOOGLE_MAPS_API_KEY en producción.
+                      </p>
+                    )}
                     <PlacePicker name="address" label="Dirección Habitual" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Ej: Calle falsa 123..." />
                     
                     <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
@@ -489,6 +507,9 @@ const OnboardingView: React.FC = () => {
                     <Button type="submit" isLoading={isLoading} className="flex-1">Finalizar Registro</Button>
                 )}
             </div>
+            <p className="text-xs text-slate-500 text-center leading-relaxed">
+              Al registrarte aceptás las <a href="/condiciones" className="text-amber-400 hover:text-amber-300">Condiciones del Servicio</a> y la <a href="/privacidad" className="text-amber-400 hover:text-amber-300">Política de Privacidad</a>.
+            </p>
           </form>
         </Card>
       </div>

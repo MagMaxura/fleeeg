@@ -154,6 +154,11 @@ const LoginView: React.FC = () => {
                         ¿Olvidaste tu contraseña?
                     </button>
                 </div>
+                <div className="mt-6 pt-5 border-t border-slate-800 flex flex-wrap justify-center gap-3 text-xs text-slate-500">
+                    <a href="/privacidad" className="hover:text-amber-400 transition-colors">Política de Privacidad</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="/condiciones" className="hover:text-amber-400 transition-colors">Condiciones del Servicio</a>
+                </div>
             </Card>
         </div>
     );

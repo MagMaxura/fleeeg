@@ -405,7 +405,7 @@ export interface Driver extends Profile {
 // --- App Context Specific Types ---
 
 export type SortKey = 'trips' | 'kilograms' | 'volume' | 'kilometers' | 'rating';
-export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile' | 'confirmEmail' | 'wallet' | 'admin';
+export type View = 'home' | 'landing' | 'onboarding' | 'login' | 'dashboard' | 'rankings' | 'tripStatus' | 'driverProfile' | 'profile' | 'confirmEmail' | 'wallet' | 'admin' | 'privacy' | 'terms';
 
 // A simplified local error type to avoid a direct dependency on @supabase/supabase-js.
 export type SimpleAuthError = { name: string; message: string; };

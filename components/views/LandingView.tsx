@@ -101,6 +101,12 @@ const LandingView: React.FC = () => {
             animationDelay="0.5s"
           />
         </div>
+
+        <div className="mt-10 flex flex-wrap justify-center gap-4 text-sm text-slate-500">
+          <a href="/privacidad" className="hover:text-amber-400 transition-colors">Política de Privacidad</a>
+          <span aria-hidden="true">·</span>
+          <a href="/condiciones" className="hover:text-amber-400 transition-colors">Condiciones del Servicio</a>
+        </div>
       </div>
     </div>
   );

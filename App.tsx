@@ -29,14 +29,23 @@ import TripStatusView from './components/views/TripStatusView';
 import DriverProfileView from './components/views/DriverProfileView';
 import ProfileView from './components/views/ProfileView';
 import ConfirmEmailView from './components/views/ConfirmEmailView';
+import LegalView from './components/views/LegalView';
 import WalletView from './components/views/dashboards/WalletView';
 import AdminDashboard from './components/views/dashboards/AdminDashboard';
 
 
+const initialViewFromPath = (): View => {
+  if (typeof window === 'undefined') return 'home';
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (pathname === '/privacidad' || pathname === '/politica-de-privacidad') return 'privacy';
+  if (pathname === '/condiciones' || pathname === '/condiciones-del-servicio') return 'terms';
+  return 'home';
+};
+
 
 
 const App: React.FC = () => {
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(initialViewFromPath);
   const [emailForConfirmation, setEmailForConfirmation] = useState<string | null>(null);
   const [user, setUser] = useState<Profile | null>(null);
   const [users, setUsers] = useState<Profile[]>([]);
@@ -311,6 +320,12 @@ const App: React.FC = () => {
       subscription?.unsubscribe();
     };
   }, [handleSession]);
+
+  useEffect(() => {
+    const handlePopState = () => setView(initialViewFromPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     // This effect runs once the initial session check is complete.
@@ -1320,6 +1335,8 @@ const App: React.FC = () => {
       case 'onboarding': return <OnboardingView />;
       case 'login': return <LoginView />;
       case 'confirmEmail': return <ConfirmEmailView email={emailForConfirmation} />;
+      case 'privacy': return <LegalView type="privacy" />;
+      case 'terms': return <LegalView type="terms" />;
       case 'dashboard': return user ? <DashboardView /> : <LoginView />;
       case 'rankings': return user ? <RankingsView /> : <LoginView />;
       case 'tripStatus': return user && activeTripId ? <TripStatusView tripId={activeTripId} /> : <DashboardView />;

@@ -5,11 +5,20 @@ declare const Deno: any;
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 Deno.serve(async (req: Request) => {
-  // A simplified, known-good CORS configuration to prevent preflight failures.
+  const appPublicUrl = Deno.env.get('APP_PUBLIC_URL') || 'https://fletapp.vercel.app';
+  const requestOrigin = req.headers.get('Origin') || appPublicUrl;
+  const allowedOrigins = new Set(
+    [appPublicUrl, ...(Deno.env.get('ALLOWED_WEB_ORIGINS') || '').split(',')]
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  );
+  const corsOrigin = allowedOrigins.has(requestOrigin) ? requestOrigin : appPublicUrl;
+
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
   };
 
   // Handle CORS preflight requests.
@@ -68,15 +77,8 @@ Deno.serve(async (req: Request) => {
       throw new Error(`No se encontró el cliente con ID: ${trip.customer_id}`);
     }
     
-    // Use the request's Origin header for the redirect URLs, with a fallback to production.
-    let backUrlOrigin = req.headers.get('Origin') || 'https://fletapp.vercel.app';
-
-    // FIX: Sanitize backUrlOrigin for local development. Mercado Pago requires public HTTPS URLs.
-    // This prevents API rejection when testing from 'localhost'.
-    if (backUrlOrigin.includes('localhost') || backUrlOrigin.includes('127.0.0.1')) {
-        backUrlOrigin = 'https://fletapp.vercel.app'; // Force production URL for local dev callbacks.
-        console.log(`[mercadopago-proxy] Detected local development. Overriding back_urls origin to: ${backUrlOrigin}`);
-    }
+    // Mercado Pago requires public HTTPS callback URLs. Always use the configured production URL.
+    const backUrlOrigin = appPublicUrl.replace(/\/+$/, '');
 
 
     // FIX: Robustly split name for Mercado Pago payer info.
