@@ -44,7 +44,7 @@ supabase secrets set VITE_MERCADO_PAGO_PUBLIC_KEY=your-production-mercado-pago-p
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 supabase secrets set VAPID_PUBLIC_KEY=your-vapid-public-key
 supabase secrets set VAPID_PRIVATE_KEY=your-vapid-private-key
-supabase secrets set VAPID_SUBJECT=mailto:admin@fleteen.com
+supabase secrets set VAPID_SUBJECT=mailto:maxiuranga5@gmail.com
 supabase secrets set GEMINI_API_KEY=your-gemini-api-key
 ```
 
