@@ -106,7 +106,7 @@ const WalletView: React.FC = () => {
                 <Card className="bg-slate-900/60">
                     <p className="text-slate-400 text-sm font-medium mb-1 uppercase tracking-wider">Total Cobrado</p>
                     <h2 className="text-4xl font-bold text-green-400">${totalWithdrawn.toLocaleString()}</h2>
-                    <p className="text-xs text-slate-500 mt-2">Desde que empezaste en Fletapp</p>
+                    <p className="text-xs text-slate-500 mt-2">Desde que empezaste en Fleteen</p>
                 </Card>
             </div>
 
@@ -125,7 +125,7 @@ const WalletView: React.FC = () => {
                             id="payout-info"
                             value={paymentInfo}
                             onChange={(e) => setPaymentInfo(e.target.value)}
-                            placeholder="Ej: fletapp.transferencia.mercado"
+                            placeholder="Ej: fleteen.transferencia.mercado"
                         />
                         
                         {error && <p className="text-red-400 text-sm">{error}</p>}

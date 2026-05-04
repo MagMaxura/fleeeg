@@ -6,7 +6,7 @@ body {
     /* Fallback */
 }
 
-.fletapp-text-gradient {
+.fleteen-text-gradient {
     background: linear-gradient(120deg, #fde047, #f59e0b, #d97706);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -14,7 +14,7 @@ body {
     text-fill-color: transparent;
 }
 
-.fletapp-gold-gradient {
+.fleteen-gold-gradient {
     background: linear-gradient(120deg, #fde047, #f59e0b, #d97706);
 }
 

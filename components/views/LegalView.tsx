@@ -19,7 +19,7 @@ const PrivacyPolicy = () => (
   <>
     <Section title="1. Responsable del tratamiento">
       <p>
-        Fletapp es una plataforma que conecta clientes con fleteros para solicitar, coordinar y pagar servicios de
+        Fleteen es una plataforma que conecta clientes con fleteros para solicitar, coordinar y pagar servicios de
         flete. Para consultas sobre privacidad, podés escribirnos desde los canales de contacto disponibles en la app.
       </p>
     </Section>
@@ -51,7 +51,7 @@ const PrivacyPolicy = () => (
     </Section>
     <Section title="5. Servicios de terceros">
       <p>
-        Fletapp utiliza proveedores externos para operar funciones esenciales, incluyendo Supabase para autenticación,
+        Fleteen utiliza proveedores externos para operar funciones esenciales, incluyendo Supabase para autenticación,
         base de datos, almacenamiento y funciones backend; Google Maps Platform para mapas, direcciones, lugares y
         rutas; y Mercado Pago para procesamiento de pagos.
       </p>
@@ -83,7 +83,7 @@ const TermsOfService = () => (
   <>
     <Section title="1. Alcance del servicio">
       <p>
-        Fletapp es una plataforma tecnológica que facilita el contacto entre clientes que necesitan realizar fletes y
+        Fleteen es una plataforma tecnológica que facilita el contacto entre clientes que necesitan realizar fletes y
         fleteros que ofrecen servicios de transporte. La app no reemplaza las obligaciones legales, comerciales,
         fiscales, laborales, de tránsito o de seguro que correspondan a cada usuario.
       </p>
@@ -91,7 +91,7 @@ const TermsOfService = () => (
     <Section title="2. Registro y veracidad de datos">
       <p>
         Para usar la plataforma, el usuario debe brindar información real, actualizada y completa. Los fleteros deben
-        mantener vigente su documentación personal, licencia, datos del vehículo y datos de cobro. Fletapp puede limitar
+        mantener vigente su documentación personal, licencia, datos del vehículo y datos de cobro. Fleteen puede limitar
         o suspender cuentas ante datos falsos, uso indebido o riesgo para otros usuarios.
       </p>
     </Section>
@@ -123,13 +123,13 @@ const TermsOfService = () => (
     <Section title="6. Responsabilidades">
       <p>
         Cada usuario responde por sus actos, información, documentación, cumplimiento normativo y ejecución del servicio
-        que solicita u ofrece. Fletapp puede facilitar herramientas de coordinación, seguimiento, pagos y comunicación,
+        que solicita u ofrece. Fleteen puede facilitar herramientas de coordinación, seguimiento, pagos y comunicación,
         pero no garantiza disponibilidad continua ni resultado específico en todos los casos.
       </p>
     </Section>
     <Section title="7. Suspensión o baja">
       <p>
-        Fletapp puede suspender, limitar o cancelar cuentas por incumplimiento de estas condiciones, sospecha de fraude,
+        Fleteen puede suspender, limitar o cancelar cuentas por incumplimiento de estas condiciones, sospecha de fraude,
         problemas de seguridad, reclamos graves, documentación inválida o requerimientos legales.
       </p>
     </Section>
@@ -149,7 +149,7 @@ const LegalView: React.FC<LegalViewProps> = ({ type }) => {
   return (
     <div className="container mx-auto px-4 py-10 max-w-5xl animate-fadeSlideIn">
       <div className="mb-8">
-        <p className="text-amber-400 text-sm font-bold uppercase tracking-wider mb-3">Fletapp</p>
+        <p className="text-amber-400 text-sm font-bold uppercase tracking-wider mb-3">Fleteen</p>
         <h1 className="text-4xl md:text-5xl font-extrabold text-slate-100">
           {isPrivacy ? 'Política de Privacidad' : 'Condiciones del Servicio'}
         </h1>
@@ -162,7 +162,7 @@ const LegalView: React.FC<LegalViewProps> = ({ type }) => {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button type="button" variant="secondary" onClick={() => context?.setView(context.user ? 'dashboard' : 'landing')}>
-          Volver a Fletapp
+          Volver a Fleteen
         </Button>
         <a className="text-amber-400 hover:text-amber-300 font-bold inline-flex items-center px-4" href={isPrivacy ? '/condiciones' : '/privacidad'}>
           Ver {isPrivacy ? 'Condiciones del Servicio' : 'Política de Privacidad'}

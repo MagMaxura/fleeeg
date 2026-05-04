@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fletapp-pwa-cache-v1';
+const CACHE_NAME = 'fleteen-pwa-cache-v1';
 // Esta lista contiene los archivos esenciales para el shell de la aplicación.
 // Todas las rutas deben ser absolutas desde la raíz.
 const urlsToCache = [
@@ -81,13 +81,13 @@ self.addEventListener('activate', event => {
 // --- PUSH NOTIFICATIONS ---
 
 self.addEventListener('push', event => {
-  let data = { title: 'Fletapp', body: 'Tienes una nueva notificacin' };
+  let data = { title: 'Fleteen', body: 'Tienes una nueva notificacin' };
 
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: 'Fletapp', body: event.data.text() };
+      data = { title: 'Fleteen', body: event.data.text() };
     }
   }
 

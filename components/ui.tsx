@@ -59,7 +59,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseClasses = "relative overflow-hidden font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-px active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
 
     const variantClasses = {
-      primary: 'fletapp-gold-gradient text-slate-900 shadow-amber-900/30 hover:shadow-amber-800/50 focus-visible:ring-amber-400',
+      primary: 'fleteen-gold-gradient text-slate-900 shadow-amber-900/30 hover:shadow-amber-800/50 focus-visible:ring-amber-400',
       secondary: 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-100 border border-slate-700 hover:border-slate-600 focus-visible:ring-slate-400',
       ghost: 'bg-transparent hover:bg-slate-800/50 text-slate-200 focus-visible:ring-slate-400 shadow-none hover:shadow-none'
     };

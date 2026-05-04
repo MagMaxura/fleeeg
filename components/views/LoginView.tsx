@@ -120,7 +120,7 @@ const LoginView: React.FC = () => {
         <div className="container mx-auto p-4 pt-20 flex justify-center items-center">
             <Card className="max-w-md w-full animate-fadeInUp">
                 <h2 className="text-3xl font-bold mb-2 text-center text-slate-100">Iniciar Sesión</h2>
-                <p className="text-slate-400 text-center mb-8">Accede a tu cuenta de Fletapp.</p>
+                <p className="text-slate-400 text-center mb-8">Accede a tu cuenta de Fleteen.</p>
 
                 <form onSubmit={handleLogin} className="space-y-6">
                     <Input

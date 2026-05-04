@@ -70,7 +70,7 @@ const RankingsView: React.FC = () => {
         onClick={() => setSortKey(aSortKey)} 
         className={`relative py-2 px-4 rounded-lg transition-all duration-300 text-sm sm:text-base font-semibold outline-none focus-visible:ring-2 ring-amber-500 ring-offset-2 ring-offset-slate-900 ${sortKey === aSortKey ? 'text-slate-900' : 'text-slate-300 hover:text-white'}`}
       >
-          {sortKey === aSortKey && <span className="absolute inset-0 fletapp-gold-gradient rounded-lg -z-10"></span>}
+          {sortKey === aSortKey && <span className="absolute inset-0 fleteen-gold-gradient rounded-lg -z-10"></span>}
           {children}
       </button>
   );
@@ -98,7 +98,7 @@ const RankingsView: React.FC = () => {
             >
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex items-center gap-4 w-full sm:w-auto">
-                  <span className={`text-3xl font-bold w-12 text-center ${index < 3 ? 'fletapp-text-gradient bg-clip-text text-transparent' : 'text-slate-500'}`}>#{index + 1}</span>
+                  <span className={`text-3xl font-bold w-12 text-center ${index < 3 ? 'fleteen-text-gradient bg-clip-text text-transparent' : 'text-slate-500'}`}>#{index + 1}</span>
                   <img src={driver.photo_url} alt={driver.full_name} className="w-16 h-16 rounded-full object-cover border-2 border-slate-700"/>
                 </div>
                 <div className="flex-1 text-center sm:text-left">

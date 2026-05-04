@@ -1266,8 +1266,8 @@ const App: React.FC = () => {
     return (
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || view !== 'landing' ? 'bg-slate-950/80 backdrop-blur-lg shadow-lg' : 'bg-transparent'}`}>
         <div className="container mx-auto p-4 flex justify-between items-center">
-          <div className="text-2xl font-bold fletapp-text-gradient bg-clip-text text-transparent cursor-pointer" onClick={() => setView(user ? 'dashboard' : 'landing')}>
-            Fletapp
+          <div className="text-2xl font-bold fleteen-text-gradient bg-clip-text text-transparent cursor-pointer" onClick={() => setView(user ? 'dashboard' : 'landing')}>
+            Fleteen
           </div>
           <nav className="flex items-center gap-2 sm:gap-4">
             {user ? (
@@ -1351,7 +1351,7 @@ const App: React.FC = () => {
   return (
     <AppContext.Provider value={appContextValue}>
       <PushNotificationManager userId={user?.id} />
-      <div className="bg-slate-950 text-slate-100 min-h-screen font-sans fletapp-bg">
+      <div className="bg-slate-950 text-slate-100 min-h-screen font-sans fleteen-bg">
         <Header />
         <main className={view === 'home' ? '' : 'pt-20 sm:pt-24 pb-24 sm:pb-12'}>
           {renderView()}

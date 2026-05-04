@@ -175,7 +175,7 @@ const ProfileView: React.FC = () => {
                     {!user.role && (
                         <div className="mb-8 p-4 bg-slate-800/50 rounded-lg border border-amber-500/30 text-center animate-fadeSlideIn">
                             <h3 className="text-xl font-bold text-amber-300 mb-2">Completa tu Registro</h3>
-                            <p className="text-slate-300 mb-4">Para continuar, por favor elige tu rol en Fletapp.</p>
+                            <p className="text-slate-300 mb-4">Para continuar, por favor elige tu rol en Fleteen.</p>
                             <div className="flex justify-center gap-4">
                                 <Button onClick={() => handleRoleSelect('driver')} variant={formState.role === 'driver' ? 'primary' : 'secondary'}>
                                     <Icon type="fleteroPro" className="w-5 h-5 mr-2" /> Soy Fletero

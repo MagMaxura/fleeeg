@@ -36,7 +36,7 @@ serve(async (req) => {
     // VAPID keys from environment variables
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')
-    const vapidSubject = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@fletapp.com'
+    const vapidSubject = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@fleteen.com'
 
     if (!vapidPublicKey || !vapidPrivateKey) {
         return new Response(JSON.stringify({ error: "VAPID keys not configured" }), {

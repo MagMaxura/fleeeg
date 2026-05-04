@@ -185,7 +185,7 @@ const AdminDashboard: React.FC = () => {
                         <Icon type="truck" className="w-8 h-8 text-amber-400" />
                         Panel Administrativo
                     </h1>
-                    <p className="text-slate-400 mt-1">Gestión de proveedores y finanzas de Fletapp</p>
+                    <p className="text-slate-400 mt-1">Gestión de proveedores y finanzas de Fleteen</p>
                 </div>
                 
                 <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800 overflow-x-auto max-w-full">

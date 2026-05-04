@@ -1,4 +1,4 @@
-# Fletapp
+# Fleteen
 
 Aplicacion React + Vite para conectar clientes con fleteros, gestionar viajes, ofertas, pagos, ubicacion y liquidaciones.
 
@@ -23,7 +23,7 @@ npm run dev
 Configurar estas variables en Vercel o en el hosting del frontend:
 
 ```bash
-VITE_APP_PUBLIC_URL=https://fletapp.vercel.app
+VITE_APP_PUBLIC_URL=https://www.fleteen.com
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-production-supabase-anon-key
 VITE_GOOGLE_MAPS_API_KEY=your-browser-restricted-google-maps-key
@@ -37,14 +37,14 @@ La clave de Google Maps debe estar restringida por dominio HTTP referrer y por A
 Configurar secrets productivos en Supabase:
 
 ```bash
-supabase secrets set APP_PUBLIC_URL=https://fletapp.vercel.app
-supabase secrets set ALLOWED_WEB_ORIGINS=https://fletapp.vercel.app,https://your-custom-domain.com
+supabase secrets set APP_PUBLIC_URL=https://www.fleteen.com
+supabase secrets set ALLOWED_WEB_ORIGINS=https://www.fleteen.com,https://your-custom-domain.com
 supabase secrets set MERCADO_PAGO_TOKEN=your-production-mercado-pago-access-token
 supabase secrets set VITE_MERCADO_PAGO_PUBLIC_KEY=your-production-mercado-pago-public-key
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 supabase secrets set VAPID_PUBLIC_KEY=your-vapid-public-key
 supabase secrets set VAPID_PRIVATE_KEY=your-vapid-private-key
-supabase secrets set VAPID_SUBJECT=mailto:admin@fletapp.com
+supabase secrets set VAPID_SUBJECT=mailto:admin@fleteen.com
 supabase secrets set GEMINI_API_KEY=your-gemini-api-key
 ```
 

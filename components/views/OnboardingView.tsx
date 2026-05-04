@@ -258,7 +258,7 @@ const OnboardingView: React.FC = () => {
     return (
       <div className="container mx-auto p-4 pt-16 text-center">
         <h2 className="text-4xl font-bold mb-4 text-slate-100 animate-fadeIn">Crear una Cuenta</h2>
-        <p className="text-slate-300 mb-12 text-lg animate-fadeIn delay-100">Como deseas usar Fletapp?</p>
+        <p className="text-slate-300 mb-12 text-lg animate-fadeIn delay-100">Como deseas usar Fleteen?</p>
         <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
           <RoleSelectionCard
             onClick={() => setRole('driver')}

@@ -94,7 +94,7 @@ const HomeView: React.FC = () => {
                 className="text-7xl md:text-9xl font-extrabold tracking-tighter mb-4 staggered-child" 
                 style={{textShadow: '0 8px 40px rgba(0,0,0,0.5)', animationDelay: '0.4s'}}
                 >
-                <span className="fletapp-text-gradient bg-clip-text text-transparent bg-gradient-to-br from-amber-300 to-orange-600">Fletapp</span>
+                <span className="fleteen-text-gradient bg-clip-text text-transparent bg-gradient-to-br from-amber-300 to-orange-600">Fleteen</span>
                 </h1>
                 <p 
                 className="text-lg md:text-xl text-slate-300/80 max-w-2xl mb-12 staggered-child"
@@ -110,7 +110,7 @@ const HomeView: React.FC = () => {
                     >
                     <span className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl opacity-80 group-hover:opacity-100 transition-opacity duration-300"></span>
                     <span className="absolute inset-0.5 bg-slate-900 rounded-[14px]"></span>
-                    <span className="relative fletapp-text-gradient bg-clip-text text-transparent bg-gradient-to-br from-amber-300 to-orange-500 group-hover:from-amber-200 group-hover:to-orange-400 transition-colors duration-300">
+                    <span className="relative fleteen-text-gradient bg-clip-text text-transparent bg-gradient-to-br from-amber-300 to-orange-500 group-hover:from-amber-200 group-hover:to-orange-400 transition-colors duration-300">
                         Comenzar
                     </span>
                     <span className="absolute inset-0 w-full h-full animate-shimmer"></span>

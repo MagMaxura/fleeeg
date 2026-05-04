@@ -870,14 +870,14 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
                         <div className="staggered-child" style={{ animationDelay: '0.3s' }}><Card>
                             <h3 className="text-xl font-bold mb-8 text-slate-100">Estado del Viaje</h3>
                             <div className="relative border-l-2 border-slate-700 ml-4">
-                                <div className="absolute top-0 -left-px w-0.5 fletapp-gold-gradient transition-all duration-1000 ease-out" style={{ height: progressHeight }}></div>
+                                <div className="absolute top-0 -left-px w-0.5 fleteen-gold-gradient transition-all duration-1000 ease-out" style={{ height: progressHeight }}></div>
                                 {statuses.map((status, index) => {
                                     const isActive = index <= currentStatusIndex;
                                     const isCurrent = index === currentStatusIndex;
                                     return (
                                         <div key={status.key} className="relative mb-10 pl-10">
-                                            <div className={`absolute -left-[13px] top-1 w-6 h-6 rounded-full border-4 border-slate-950 transition-all duration-500 ${isActive ? 'fletapp-gold-gradient' : 'bg-slate-600'}`}>
-                                                {isCurrent && <div className="absolute inset-0 rounded-full fletapp-gold-gradient animate-pulse"></div>}
+                                            <div className={`absolute -left-[13px] top-1 w-6 h-6 rounded-full border-4 border-slate-950 transition-all duration-500 ${isActive ? 'fleteen-gold-gradient' : 'bg-slate-600'}`}>
+                                                {isCurrent && <div className="absolute inset-0 rounded-full fleteen-gold-gradient animate-pulse"></div>}
                                             </div>
                                             <p className={`font-bold transition-colors duration-500 text-lg ${isActive ? 'text-white' : 'text-slate-500'}`}>{status.label}</p>
                                             {status.key === 'accepted' && driver && (

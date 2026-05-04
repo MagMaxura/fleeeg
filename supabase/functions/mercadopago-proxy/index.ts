@@ -5,7 +5,7 @@ declare const Deno: any;
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 Deno.serve(async (req: Request) => {
-  const appPublicUrl = Deno.env.get('APP_PUBLIC_URL') || 'https://fletapp.vercel.app';
+  const appPublicUrl = Deno.env.get('APP_PUBLIC_URL') || 'https://www.fleteen.com';
   const requestOrigin = req.headers.get('Origin') || appPublicUrl;
   const allowedOrigins = new Set(
     [appPublicUrl, ...(Deno.env.get('ALLOWED_WEB_ORIGINS') || '').split(',')]
@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
 
     // FIX: Robustly split name for Mercado Pago payer info.
     // Mercado Pago requires both a name and a surname. This logic handles single-word names.
-    const fullName = (customer.full_name || 'Cliente Fletapp').trim();
+    const fullName = (customer.full_name || 'Cliente Fleteen').trim();
     const nameParts = fullName.split(/\s+/);
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : firstName;

@@ -82,7 +82,7 @@ const LandingView: React.FC = () => {
 
         {/* Text Content */}
         <div className="w-full">
-            <h2 className="text-4xl font-bold mb-4 text-slate-100 text-center staggered-child" style={{animationDelay: '0.1s'}}>Bienvenido a Fletapp</h2>
+            <h2 className="text-4xl font-bold mb-4 text-slate-100 text-center staggered-child" style={{animationDelay: '0.1s'}}>Bienvenido a Fleteen</h2>
             <p className="text-slate-300 mb-12 text-lg max-w-xl text-center mx-auto staggered-child" style={{animationDelay: '0.2s'}}>Tu plataforma de confianza para fletes y envíos. Conectando necesidades con soluciones.</p>
         </div>
 
