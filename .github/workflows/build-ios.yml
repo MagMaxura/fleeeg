@@ -13,6 +13,9 @@ on:
       - 'package.json'
       - '.github/workflows/build-ios.yml'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: macos-latest
@@ -69,13 +72,20 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
+      - name: Resolve Swift Package Manager dependencies
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj \
+            -resolvePackageDependencies \
+            -clonedSourcePackagesDirPath ios/App/CapApp-SPM
+
       - name: Build and archive
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          xcodebuild -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/App.xcarchive \
+            -clonedSourcePackagesDirPath ios/App/CapApp-SPM \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
