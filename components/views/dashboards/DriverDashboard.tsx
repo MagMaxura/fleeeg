@@ -28,13 +28,35 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; recipien
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        supabase.from('offer_messages' as any).select('*').eq('offer_id', offerId).order('created_at', { ascending: true })
-            .then(({ data }) => setMessages(data || []));
+        let isActive = true;
+
+        const fetchMsgs = async () => {
+            const { data } = await (supabase.from('offer_messages' as any) as any)
+                .select('*').eq('offer_id', offerId).order('created_at', { ascending: true });
+            if (isActive) setMessages((data as any[]) || []);
+        };
+        fetchMsgs();
+
         const channel = supabase.channel(`offer_chat_${offerId}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'offer_messages', filter: `offer_id=eq.${offerId}` },
-                (payload) => setMessages(prev => [...prev, payload.new]))
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
+                (payload) => {
+                    if (!isActive) return;
+                    setMessages(prev => {
+                        const newMsg = payload.new as any;
+                        if (prev.some((m: any) => m.id === newMsg.id)) return prev;
+                        const filtered = prev.filter((m: any) =>
+                            !(String(m.id).startsWith('tmp_') && m.sender_id === newMsg.sender_id && m.content === newMsg.content)
+                        );
+                        return [...filtered, newMsg];
+                    });
+                })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED' && isActive) fetchMsgs();
+            });
+        return () => {
+            isActive = false;
+            supabase.removeChannel(channel);
+        };
     }, [offerId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -42,8 +64,20 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; recipien
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim()) return;
-        setIsSending(true);
         const content = newMessage.trim();
+        setNewMessage('');
+        setIsSending(true);
+
+        const tempMsg = {
+            id: `tmp_${Date.now()}`,
+            offer_id: offerId,
+            sender_id: currentUserId,
+            content,
+            message_type: 'text',
+            created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, tempMsg]);
+
         await (supabase.from('offer_messages' as any) as any).insert({
             offer_id: offerId, sender_id: currentUserId, content, message_type: 'text'
         });
@@ -53,7 +87,6 @@ const OfferMiniChat: React.FC<{ offerId: number; currentUserId: string; recipien
             content.length > 60 ? content.substring(0, 57) + '...' : content,
             'offer_message'
         );
-        setNewMessage('');
         setIsSending(false);
     };
 

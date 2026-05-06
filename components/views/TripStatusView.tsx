@@ -357,6 +357,8 @@ const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
     }, [messages]);
 
     useEffect(() => {
+        let isActive = true;
+
         const fetchMessages = async () => {
             setIsLoading(true);
             const { data, error } = await supabase
@@ -364,7 +366,7 @@ const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
                 .select('*')
                 .eq('trip_id', tripId)
                 .order('created_at', { ascending: true });
-
+            if (!isActive) return;
             if (error) {
                 console.error('Error fetching messages:', error);
             } else {
@@ -379,23 +381,45 @@ const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `trip_id=eq.${tripId}` },
                 (payload) => {
-                    setMessages((prevMessages) => [...prevMessages, payload.new as ChatMessage]);
+                    if (!isActive) return;
+                    setMessages((prevMessages) => {
+                        const newMsg = payload.new as ChatMessage;
+                        if (prevMessages.some(m => m.id === newMsg.id)) return prevMessages;
+                        const filtered = prevMessages.filter(m =>
+                            !(String(m.id).startsWith('tmp_') && m.sender_id === newMsg.sender_id && m.content === newMsg.content)
+                        );
+                        return [...filtered, newMsg];
+                    });
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED' && isActive) fetchMessages();
+            });
 
         return () => {
+            isActive = false;
             supabase.removeChannel(channel);
         };
     }, [tripId]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim() || !context || isSending) return;
+        if (!newMessage.trim() || !context || isSending || !user) return;
 
-        setIsSending(true);
-        await context.sendChatMessage(tripId, newMessage.trim());
+        const content = newMessage.trim();
         setNewMessage('');
+        setIsSending(true);
+
+        const tempMessage = {
+            id: `tmp_${Date.now()}`,
+            trip_id: tripId,
+            sender_id: user.id,
+            content,
+            created_at: new Date().toISOString(),
+        } as unknown as ChatMessage;
+        setMessages(prev => [...prev, tempMessage]);
+
+        await context.sendChatMessage(tripId, content);
         setIsSending(false);
     };
 
@@ -443,6 +467,173 @@ const ChatComponent: React.FC<{ tripId: number }> = ({ tripId }) => {
     );
 };
 
+
+const OfferChat: React.FC<{ offer: Offer; driver: Driver }> = ({ offer, driver }) => {
+    const context = useContext(AppContext);
+    const user = context?.user;
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        let isActive = true;
+
+        const fetchMsgs = async () => {
+            const { data } = await (supabase.from('offer_messages' as any) as any)
+                .select('*')
+                .eq('offer_id', offer.id)
+                .order('created_at', { ascending: true });
+            if (isActive) setMessages((data as any[]) || []);
+        };
+        fetchMsgs();
+
+        const channel = supabase.channel(`offer_chat_${offer.id}`)
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'offer_messages', filter: `offer_id=eq.${offer.id}` },
+                (payload) => {
+                    if (!isActive) return;
+                    setMessages(prev => {
+                        const newMsg = payload.new as any;
+                        if (prev.some((m: any) => m.id === newMsg.id)) return prev;
+                        const filtered = prev.filter((m: any) =>
+                            !(String(m.id).startsWith('tmp_') && m.sender_id === newMsg.sender_id && m.content === newMsg.content)
+                        );
+                        return [...filtered, newMsg];
+                    });
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED' && isActive) fetchMsgs();
+            });
+
+        return () => {
+            isActive = false;
+            supabase.removeChannel(channel);
+        };
+    }, [offer.id]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !user) return;
+        const content = newMessage.trim();
+        setNewMessage('');
+        setIsSending(true);
+
+        const tempMsg = {
+            id: `tmp_${Date.now()}`,
+            offer_id: offer.id,
+            sender_id: user.id,
+            content,
+            message_type: 'text',
+            created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, tempMsg]);
+
+        await (supabase.from('offer_messages' as any) as any).insert({
+            offer_id: offer.id,
+            sender_id: user.id,
+            content,
+            message_type: 'text',
+        });
+        createNotification(
+            offer.driver_id,
+            `Mensaje de ${(user.full_name || 'Cliente').split(' ')[0]} 💬`,
+            content.length > 60 ? content.substring(0, 57) + '...' : content,
+            'offer_message', offer.trip_id, offer.id
+        );
+        setIsSending(false);
+    };
+
+    const avatarUrl = driver.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.full_name)}&background=0f172a&color=fff&size=32`;
+
+    return (
+        <div className="mt-4 border-t border-slate-800 pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Conversación</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {offer.notes && (
+                    <div className="flex gap-2 items-end">
+                        <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                        <div className="bg-slate-800 rounded-2xl rounded-bl-none px-3 py-2 text-sm text-slate-200 max-w-[75%]">
+                            {offer.notes}
+                        </div>
+                    </div>
+                )}
+                {messages.map((msg: any) => {
+                    const isMsgDriver = msg.sender_id === offer.driver_id;
+                    if (msg.message_type === 'price_update') {
+                        return (
+                            <div key={msg.id} className={`flex ${isMsgDriver ? 'justify-start gap-2 items-end' : 'justify-end'}`}>
+                                {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
+                                <div className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] border ${isMsgDriver ? 'bg-emerald-500/10 border-emerald-500/40 rounded-bl-none' : 'bg-amber-500/10 border-amber-500/40 rounded-br-none'}`}>
+                                    <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isMsgDriver ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                        Nueva cotización recibida
+                                    </p>
+                                    <p className={`text-xl font-bold ${isMsgDriver ? 'text-emerald-300' : 'text-amber-300'}`}>
+                                        ${Number(msg.new_price).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    }
+                    return (
+                        <div key={msg.id} className={`flex gap-2 items-end ${isMsgDriver ? '' : 'flex-row-reverse'}`}>
+                            {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
+                            <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isMsgDriver ? 'bg-slate-800 text-slate-200 rounded-bl-none' : 'bg-amber-600/80 text-white rounded-br-none'}`}>
+                                {msg.content}
+                            </div>
+                        </div>
+                    );
+                })}
+                <div ref={messagesEndRef} />
+            </div>
+            <form onSubmit={handleSend} className="flex gap-2 mt-3">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    placeholder="Responder al fletero..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+                />
+                <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
+            </form>
+        </div>
+    );
+};
+
+const OfferCard: React.FC<{ offer: Offer }> = ({ offer }) => {
+    const context = useContext(AppContext);
+    const driver = context?.users.find(u => u.id === offer.driver_id) as Driver | undefined;
+    const [isAccepting, setIsAccepting] = useState(false);
+
+    if (!driver || !context) return null;
+
+    const handleAcceptOffer = async () => {
+        setIsAccepting(true);
+        await context.acceptOffer(offer.id);
+    };
+
+    return (
+        <Card className="bg-slate-900/40">
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <img src={driver.photo_url || undefined} alt={driver.full_name} className="w-14 h-14 rounded-full object-cover border-2 border-slate-700" />
+                    <p className="font-bold text-slate-100 text-lg">{driver.full_name}</p>
+                </div>
+                <p className="text-2xl font-bold text-amber-400 whitespace-nowrap">${offer.price.toLocaleString()}</p>
+            </div>
+            <OfferChat offer={offer} driver={driver as Driver} />
+            <div className="mt-4 flex justify-end gap-2">
+                <Button onClick={() => context.viewDriverProfile(driver.id)} variant="secondary" size="sm">Ver Perfil</Button>
+                <Button onClick={handleAcceptOffer} isLoading={isAccepting} size="sm">Aceptar Oferta</Button>
+            </div>
+        </Card>
+    );
+};
 
 const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
     const context = useContext(AppContext);
@@ -559,7 +750,9 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
         if (user?.role === 'driver' && trip.status === 'in_transit') {
             let watchId: number;
 
-            const channel = supabase.channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } });
+            const channel = supabase
+                .channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } })
+                .subscribe();
 
             if ('geolocation' in navigator) {
                 watchId = navigator.geolocation.watchPosition(
@@ -598,140 +791,6 @@ const TripStatusView: React.FC<TripStatusViewProps> = ({ tripId }) => {
     const showReviewForm = user?.role === 'customer' && trip.status === 'paid' && !hasAlreadyReviewed;
     const showReviewSubmitted = user?.role === 'customer' && trip.status === 'paid' && hasAlreadyReviewed;
     const showOffers = user?.role === 'customer' && trip.status === 'requested';
-
-    const OfferChat: React.FC<{ offer: Offer; driver: Driver }> = ({ offer, driver }) => {
-        const [messages, setMessages] = useState<any[]>([]);
-        const [newMessage, setNewMessage] = useState('');
-        const [isSending, setIsSending] = useState(false);
-        const messagesEndRef = useRef<HTMLDivElement>(null);
-
-        useEffect(() => {
-            supabase
-                .from('offer_messages')
-                .select('*')
-                .eq('offer_id', offer.id)
-                .order('created_at', { ascending: true })
-                .then(({ data }) => setMessages(data || []));
-
-            const channel = supabase.channel(`offer_chat_${offer.id}`)
-                .on('postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: 'offer_messages', filter: `offer_id=eq.${offer.id}` },
-                    (payload) => setMessages(prev => [...prev, payload.new])
-                )
-                .subscribe();
-
-            return () => { supabase.removeChannel(channel); };
-        }, [offer.id]);
-
-        useEffect(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, [messages]);
-
-        const handleSend = async (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!newMessage.trim() || !user) return;
-            setIsSending(true);
-            const content = newMessage.trim();
-            await (supabase.from('offer_messages' as any) as any).insert({
-                offer_id: offer.id,
-                sender_id: user.id,
-                content,
-                message_type: 'text',
-            });
-            createNotification(
-                offer.driver_id,
-                `Mensaje de ${(user.full_name || 'Cliente').split(' ')[0]} 💬`,
-                content.length > 60 ? content.substring(0, 57) + '...' : content,
-                'offer_message', offer.trip_id, offer.id
-            );
-            setNewMessage('');
-            setIsSending(false);
-        };
-
-        const avatarUrl = driver.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.full_name)}&background=0f172a&color=fff&size=32`;
-
-        return (
-            <div className="mt-4 border-t border-slate-800 pt-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Conversación</p>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {offer.notes && (
-                        <div className="flex gap-2 items-end">
-                            <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                            <div className="bg-slate-800 rounded-2xl rounded-bl-none px-3 py-2 text-sm text-slate-200 max-w-[75%]">
-                                {offer.notes}
-                            </div>
-                        </div>
-                    )}
-                    {messages.map(msg => {
-                        const isMsgDriver = msg.sender_id === offer.driver_id;
-                        if (msg.message_type === 'price_update') {
-                            return (
-                                <div key={msg.id} className={`flex ${isMsgDriver ? 'justify-start gap-2 items-end' : 'justify-end'}`}>
-                                    {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
-                                    <div className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] border ${isMsgDriver ? 'bg-emerald-500/10 border-emerald-500/40 rounded-bl-none' : 'bg-amber-500/10 border-amber-500/40 rounded-br-none'}`}>
-                                        <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${isMsgDriver ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                            Nueva cotización recibida
-                                        </p>
-                                        <p className={`text-xl font-bold ${isMsgDriver ? 'text-emerald-300' : 'text-amber-300'}`}>
-                                            ${Number(msg.new_price).toLocaleString()}
-                                        </p>
-                                    </div>
-                                </div>
-                            );
-                        }
-                        return (
-                            <div key={msg.id} className={`flex gap-2 items-end ${isMsgDriver ? '' : 'flex-row-reverse'}`}>
-                                {isMsgDriver && <img src={avatarUrl} alt={driver.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />}
-                                <div className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] ${isMsgDriver ? 'bg-slate-800 text-slate-200 rounded-bl-none' : 'bg-amber-600/80 text-white rounded-br-none'}`}>
-                                    {msg.content}
-                                </div>
-                            </div>
-                        );
-                    })}
-                    <div ref={messagesEndRef} />
-                </div>
-                <form onSubmit={handleSend} className="flex gap-2 mt-3">
-                    <input
-                        type="text"
-                        value={newMessage}
-                        onChange={e => setNewMessage(e.target.value)}
-                        placeholder="Responder al fletero..."
-                        className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
-                    />
-                    <Button type="submit" isLoading={isSending} disabled={!newMessage.trim()} size="sm">Enviar</Button>
-                </form>
-            </div>
-        );
-    };
-
-    const OfferCard: React.FC<{ offer: Offer }> = ({ offer }) => {
-        const driver = context.users.find(u => u.id === offer.driver_id) as Driver | undefined;
-        const [isAccepting, setIsAccepting] = useState(false);
-
-        if (!driver) return null;
-
-        const handleAcceptOffer = async () => {
-            setIsAccepting(true);
-            await context.acceptOffer(offer.id);
-        };
-
-        return (
-            <Card className="bg-slate-900/40">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <img src={driver.photo_url || undefined} alt={driver.full_name} className="w-14 h-14 rounded-full object-cover border-2 border-slate-700" />
-                        <p className="font-bold text-slate-100 text-lg">{driver.full_name}</p>
-                    </div>
-                    <p className="text-2xl font-bold text-amber-400 whitespace-nowrap">${offer.price.toLocaleString()}</p>
-                </div>
-                <OfferChat offer={offer} driver={driver as Driver} />
-                <div className="mt-4 flex justify-end gap-2">
-                    <Button onClick={() => context.viewDriverProfile(driver.id)} variant="secondary" size="sm">Ver Perfil</Button>
-                    <Button onClick={handleAcceptOffer} isLoading={isAccepting} size="sm">Aceptar Oferta</Button>
-                </div>
-            </Card>
-        );
-    };
 
     const hasAdditionalServices = trip.needs_loading_help || trip.needs_unloading_help || (trip.number_of_helpers > 0);
 

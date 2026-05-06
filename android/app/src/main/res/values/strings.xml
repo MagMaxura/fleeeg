@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fleteen</string>
+    <string name="title_activity_main">Fleteen</string>
+    <string name="package_name">com.fleteen.app</string>
+    <string name="custom_url_scheme">com.fleteen.app</string>
+</resources>
