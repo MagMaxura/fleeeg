@@ -7,7 +7,7 @@ import type { Trip, TripStatus, ChatMessage, Offer, Driver } from '../../src/typ
 import { Button, Card, Icon, Spinner, Input, StarRating, TextArea } from '../ui.tsx';
 import { supabase } from '../../services/supabaseService.ts';
 import { createNotification } from '../../services/notificationService.ts';
-import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader.ts';
+import { mapboxgl, getDirections, MAPBOX_TOKEN } from '../../src/utils/mapbox';
 
 
 
@@ -83,81 +83,61 @@ const Stopwatch: React.FC<{ start_time: number | string }> = ({ start_time }) =>
     );
 };
 
-const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
-    const apiKey = useMemo(() => {
-        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
-        // It will be provided by Vercel during the build process.
-        return import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-    }, []);
+const geocodeAddress = async (query: string): Promise<[number, number] | null> => {
+    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=AR&limit=1`);
+    const data = await res.json();
+    return data.features?.[0]?.center ?? null;
+};
 
-    const isApiKeyMissing = !apiKey;
-    const mapEmbedUrl = !isApiKeyMissing ? `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${encodeURIComponent(trip.origin)}&destination=${encodeURIComponent(trip.destination)}` : '';
+const MapDisplay: React.FC<{ trip: Trip }> = ({ trip }) => {
+    const mapRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!mapRef.current) return;
+        const map = new mapboxgl.Map({
+            container: mapRef.current,
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-63.6167, -38.4161],
+            zoom: 5,
+            interactive: false,
+        });
+        map.on('load', async () => {
+            map.addSource('route', { type: 'geojson', data: { type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } } });
+            map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#818cf8', 'line-width': 4, 'line-opacity': 0.7 } });
+            const [oc, dc] = await Promise.all([geocodeAddress(trip.origin), geocodeAddress(trip.destination)]);
+            if (!oc || !dc) return;
+            new mapboxgl.Marker({ color: '#f59e0b' }).setLngLat(oc).addTo(map);
+            new mapboxgl.Marker({ color: '#34d399' }).setLngLat(dc).addTo(map);
+            const result = await getDirections({ lat: oc[1], lng: oc[0] }, { lat: dc[1], lng: dc[0] });
+            if (result) {
+                (map.getSource('route') as mapboxgl.GeoJSONSource).setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: result.coordinates } });
+                const lngs = result.coordinates.map(c => c[0]);
+                const lats = result.coordinates.map(c => c[1]);
+                map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 40 });
+            }
+        });
+        return () => map.remove();
+    }, [trip.origin, trip.destination]);
 
     return (
-        <div className="mt-4 aspect-video bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700 relative group">
-            {mapEmbedUrl ? (
-                <iframe
-                    title="Recorrido del Viaje"
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    allowFullScreen
-                    referrerPolicy="no-referrer-when-downgrade"
-                    src={mapEmbedUrl}
-                ></iframe>
-            ) : (
-                <div className="w-full h-full bg-slate-800/80"></div>
-            )}
-
-            <div className={`
-              absolute inset-0 flex flex-col items-center justify-center p-4 text-center 
-              transition-all duration-300 backdrop-blur-sm
-              ${mapEmbedUrl
-                    ? 'bg-slate-900/80 opacity-0 group-hover:opacity-100 focus-within:opacity-100'
-                    : 'bg-slate-800/80 opacity-100'
-                }
-            `}>
-                {isApiKeyMissing ? (
-                    <>
-                        <Icon type="truck" className="w-10 h-10 text-amber-400 mb-3" />
-                        <h4 className="font-bold text-slate-100 text-lg mb-1">Mapa Deshabilitado</h4>
-                        <p className="text-slate-300 text-sm max-w-sm">
-                            Para ver el mapa del viaje, configura la variable de entorno <strong>VITE_GOOGLE_MAPS_API_KEY</strong> en Vercel.
-                        </p>
-                    </>
-                ) : (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <h4 className="font-bold text-slate-100 text-lg mb-1">
-                            ¿Problemas para ver el mapa?
-                        </h4>
-                        <p className="text-slate-300 text-sm max-w-sm">
-                            Para que el mapa funcione, tu clave de API debe estar habilitada para el servicio <strong>"Maps Embed API"</strong> en tu proyecto de Google Cloud y tener una cuenta de facturación activa.
-                        </p>
-                    </>
-                )}
-            </div>
+        <div className="mt-4 aspect-video bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
+            <div ref={mapRef} className="w-full h-full" />
         </div>
     );
 };
 
 const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
     const mapRef = useRef<HTMLDivElement>(null);
-    const mapInstanceRef = useRef<any>(null);
-    const markerRef = useRef<any>(null);
-    const routePolylineRef = useRef<any>(null);
+    const mapInstanceRef = useRef<mapboxgl.Map | null>(null);
+    const markerRef = useRef<mapboxgl.Marker | null>(null);
+    const markerElRef = useRef<HTMLDivElement | null>(null);
     const animFrameRef = useRef<number | null>(null);
-    const prevLocationRef = useRef<{ lat: number, lng: number } | null>(null);
+    const prevLocationRef = useRef<{ lat: number; lng: number } | null>(null);
     const lastEtaCalcRef = useRef<number>(0);
-    const [driverLocation, setDriverLocation] = useState<{ lat: number, lng: number } | null>(null);
+    const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
-    const [mapsReady, setMapsReady] = useState(false);
-    const [mapsError, setMapsError] = useState<string | null>(null);
 
-    const calculateBearing = (from: { lat: number, lng: number }, to: { lat: number, lng: number }): number => {
+    const calculateBearing = (from: { lat: number; lng: number }, to: { lat: number; lng: number }): number => {
         const lat1 = from.lat * Math.PI / 180;
         const lat2 = to.lat * Math.PI / 180;
         const dLng = (to.lng - from.lng) * Math.PI / 180;
@@ -166,131 +146,73 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
         return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     };
 
-    const animateMarkerTo = (from: { lat: number, lng: number }, to: { lat: number, lng: number }, bearing: number) => {
+    const animateMarkerTo = (from: { lat: number; lng: number }, to: { lat: number; lng: number }, bearing: number) => {
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         const startTime = performance.now();
         const duration = 2500;
-
         const step = (now: number) => {
             const raw = Math.min((now - startTime) / duration, 1);
-            const t = 1 - Math.pow(1 - raw, 3); // ease-out cubic
-
+            const t = 1 - Math.pow(1 - raw, 3);
             const lat = from.lat + (to.lat - from.lat) * t;
             const lng = from.lng + (to.lng - from.lng) * t;
-
-            if (markerRef.current) {
-                markerRef.current.position = { lat, lng };
-                if (markerRef.current.content) {
-                    markerRef.current.content.style.transform = `rotate(${bearing}deg)`;
-                }
-            }
-
+            markerRef.current?.setLngLat([lng, lat]);
+            if (markerElRef.current) markerElRef.current.style.transform = `rotate(${bearing}deg)`;
             if (raw < 1) animFrameRef.current = requestAnimationFrame(step);
         };
         animFrameRef.current = requestAnimationFrame(step);
     };
 
-    const drawPlannedRoute = (map: any) => {
-        if (!window.google) return;
-        const directionsService = new window.google.maps.DirectionsService();
-        directionsService.route(
-            { origin: trip.origin, destination: trip.destination, travelMode: window.google.maps.TravelMode.DRIVING },
-            (result: any, status: string) => {
-                if (status === 'OK' && result?.routes?.[0]) {
-                    if (routePolylineRef.current) routePolylineRef.current.setMap(null);
-                    routePolylineRef.current = new window.google.maps.Polyline({
-                        path: result.routes[0].overview_path,
-                        strokeColor: '#818cf8',
-                        strokeWeight: 5,
-                        strokeOpacity: 0.5,
-                        map,
-                    });
-                }
-            }
-        );
-    };
-
-    const updateETA = (driverPos: { lat: number, lng: number }) => {
+    const updateETA = async (driverPos: { lat: number; lng: number }) => {
         const now = Date.now();
-        if (now - lastEtaCalcRef.current < 60000) return; // throttle to once per minute
+        if (now - lastEtaCalcRef.current < 60000) return;
         lastEtaCalcRef.current = now;
-        if (!window.google) return;
-        const service = new window.google.maps.DistanceMatrixService();
-        service.getDistanceMatrix(
-            {
-                origins: [driverPos],
-                destinations: [trip.destination],
-                travelMode: window.google.maps.TravelMode.DRIVING,
-            },
-            (response: any, status: string) => {
-                if (status === 'OK') {
-                    const element = response.rows?.[0]?.elements?.[0];
-                    if (element?.status === 'OK' && element.duration) {
-                        setEtaMinutes(Math.ceil(element.duration.value / 60));
-                    }
-                }
-            }
-        );
+        const dc = await geocodeAddress(trip.destination);
+        if (!dc) return;
+        const result = await getDirections(driverPos, { lat: dc[1], lng: dc[0] });
+        if (result) setEtaMinutes(Math.ceil(result.durationMin));
     };
 
     useEffect(() => {
-        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-        if (!apiKey) {
-            setMapsError('Configura VITE_GOOGLE_MAPS_API_KEY para activar el seguimiento en mapa.');
-            return;
-        }
-        loadGoogleMapsAPI(apiKey)
-            .then(() => setMapsReady(true))
-            .catch((error) => {
-                console.error('Maps loader error in live tracking:', error);
-                setMapsError('No se pudo cargar Google Maps. Verifica la clave y las APIs habilitadas.');
-            });
-    }, []);
-
-    useEffect(() => {
-        if (!mapsReady || !mapRef.current || !window.google) return;
-
-        const map = new window.google.maps.Map(mapRef.current, {
-            center: { lat: -34.6037, lng: -58.3816 },
+        if (!mapRef.current) return;
+        const map = new mapboxgl.Map({
+            container: mapRef.current,
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-58.3816, -34.6037],
             zoom: 14,
-            mapId: 'DEMO_MAP_ID',
-            disableDefaultUI: true,
-            gestureHandling: 'cooperative',
         });
         mapInstanceRef.current = map;
 
-        drawPlannedRoute(map);
+        map.on('load', async () => {
+            map.addSource('route', { type: 'geojson', data: { type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } } });
+            map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#818cf8', 'line-width': 5, 'line-opacity': 0.5 } });
 
-        window.google.maps.importLibrary('marker').then(({ AdvancedMarkerElement }: any) => {
-            const iconEl = document.createElement('div');
-            iconEl.style.cssText = 'transition: transform 0.6s ease; transform-origin: center;';
-            iconEl.innerHTML = `
-                <div style="background-color:#f59e0b;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:2px solid white;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-                        <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-                    </svg>
-                </div>`;
-            markerRef.current = new AdvancedMarkerElement({ map, content: iconEl });
+            const [oc, dc] = await Promise.all([geocodeAddress(trip.origin), geocodeAddress(trip.destination)]);
+            if (oc && dc) {
+                const result = await getDirections({ lat: oc[1], lng: oc[0] }, { lat: dc[1], lng: dc[0] });
+                if (result) (map.getSource('route') as mapboxgl.GeoJSONSource).setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: result.coordinates } });
+            }
+
+            const el = document.createElement('div');
+            el.style.cssText = 'transition: transform 0.6s ease; transform-origin: center;';
+            el.innerHTML = `<div style="background-color:#f59e0b;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:2px solid white;"><svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>`;
+            markerElRef.current = el;
+            markerRef.current = new mapboxgl.Marker({ element: el }).setLngLat([-58.3816, -34.6037]).addTo(map);
         });
 
         const channel = supabase
             .channel(`trip_tracking_${trip.id}`, { config: { broadcast: { self: true } } })
             .on('broadcast', { event: 'location' }, (payload) => {
                 if (!payload.payload) return;
-                const { lat, lng } = payload.payload as { lat: number, lng: number };
+                const { lat, lng } = payload.payload as { lat: number; lng: number };
                 const newPos = { lat, lng };
-
                 setDriverLocation(newPos);
-                mapInstanceRef.current?.panTo(newPos);
-
+                mapInstanceRef.current?.easeTo({ center: [lng, lat] });
                 const prev = prevLocationRef.current;
                 if (prev) {
-                    const bearing = calculateBearing(prev, newPos);
-                    animateMarkerTo(prev, newPos, bearing);
-                } else if (markerRef.current) {
-                    markerRef.current.position = newPos;
+                    animateMarkerTo(prev, newPos, calculateBearing(prev, newPos));
+                } else {
+                    markerRef.current?.setLngLat([lng, lat]);
                 }
-
                 prevLocationRef.current = newPos;
                 updateETA(newPos);
             })
@@ -299,21 +221,18 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
         return () => {
             supabase.removeChannel(channel);
             if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-            if (routePolylineRef.current) routePolylineRef.current.setMap(null);
+            map.remove();
+            mapInstanceRef.current = null;
         };
-    }, [mapsReady, trip.id, trip.origin, trip.destination]);
+    }, [trip.id, trip.origin, trip.destination]);
 
     return (
         <div className="mt-4 rounded-xl overflow-hidden border-2 border-amber-500 relative shadow-[0_0_20px_rgba(245,158,11,0.2)]" style={{ height: '320px' }}>
             <div ref={mapRef} className="w-full h-full" />
-
-            {/* Live badge */}
             <div className="absolute top-3 left-3 bg-slate-900/90 text-amber-400 px-3 py-1.5 rounded-full text-xs font-bold border border-amber-500/70 flex items-center gap-2 backdrop-blur-md">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                 EN VIVO
             </div>
-
-            {/* ETA badge */}
             {etaMinutes !== null && (
                 <div className="absolute top-3 right-3 bg-slate-900/90 text-emerald-300 px-3 py-1.5 rounded-full text-xs font-bold border border-emerald-500/40 backdrop-blur-md flex items-center gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -322,14 +241,7 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
                     ~{etaMinutes} min
                 </div>
             )}
-
-            {/* Waiting overlay */}
-            {mapsError ? (
-                <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center gap-3 backdrop-blur-sm p-4 text-center">
-                    <Icon type="truck" className="w-10 h-10 text-amber-400" />
-                    <p className="text-slate-200 text-sm font-semibold">{mapsError}</p>
-                </div>
-            ) : !driverLocation && (
+            {!driverLocation && (
                 <div className="absolute inset-0 bg-slate-900/65 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
                     <Spinner />
                     <p className="text-slate-200 text-sm font-semibold">Esperando señal del fletero...</p>

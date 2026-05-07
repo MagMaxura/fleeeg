@@ -1,5 +1,5 @@
 import React, { useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
+import { mapboxgl, geocodeReverse, getDirections } from '../../../src/utils/mapbox';
 import { AppContext } from '../../../AppContext.ts';
 import type { Trip, NewTrip } from '../../../src/types.ts';
 import { Button, Input, Card, Icon, Spinner, SkeletonCard, TextArea, UberAddressInput } from '../../ui.tsx';
@@ -84,14 +84,12 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
-    const [apiKeyMissing, setApiKeyMissing] = useState(false);
+
 
     const mapRef = useRef<HTMLDivElement>(null);
-    const mapInstanceRef = useRef<any>(null);
-    const polylineRef = useRef<any>(null);
-    const originMarkerRef = useRef<any>(null);
-    const destinationMarkerRef = useRef<any>(null);
-    const geocoderRef = useRef<any>(null);
+    const mapInstanceRef = useRef<mapboxgl.Map | null>(null);
+    const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
+    const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
     const [originPlace, setOriginPlace] = useState<any>(null);
     const [destinationPlace, setDestinationPlace] = useState<any>(null);
@@ -141,82 +139,48 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         }
     }, [tripToEdit, isEditMode]);
 
-    const handleMarkerDragEnd = useCallback((type: 'origin' | 'destination', position: any) => {
-        if (!geocoderRef.current) return;
-        geocoderRef.current.geocode({ location: position }, (results: any, status: any) => {
-            if (status === 'OK' && results[0]) {
-                const address = results[0].formatted_address;
-                const place = results[0];
-                if (type === 'origin') {
-                    setOriginPlace(place);
-                    handleInputChange({ target: { name: 'origin', value: address } } as any);
-                } else {
-                    setDestinationPlace(place);
-                    handleInputChange({ target: { name: 'destination', value: address } } as any);
-                }
-            }
-        });
+    const handleMarkerDragEnd = useCallback(async (type: 'origin' | 'destination', pos: { lat: number; lng: number }) => {
+        const address = await geocodeReverse(pos.lng, pos.lat);
+        if (!address) return;
+        const place = { center: [pos.lng, pos.lat] as [number, number], lat: pos.lat, lng: pos.lng, formatted_address: address, name: address.split(',')[0], city: '', province: '' };
+        if (type === 'origin') {
+            setOriginPlace(place);
+            handleInputChange({ target: { name: 'origin', value: address } } as any);
+        } else {
+            setDestinationPlace(place);
+            handleInputChange({ target: { name: 'destination', value: address } } as any);
+        }
     }, []);
 
-    const initMapAndAutocompletes = useCallback(async () => {
-        if (!window.google) return;
-
-        const { Map } = await window.google.maps.importLibrary("maps");
-        const { AdvancedMarkerElement } = await window.google.maps.importLibrary("marker");
-        const { Geocoder } = window.google.maps;
-
-        if (!geocoderRef.current) {
-            geocoderRef.current = new Geocoder();
-        }
-
-        const mapOptions = {
-            center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
+    const initMap = useCallback(() => {
+        if (!mapRef.current || mapInstanceRef.current) return;
+        const map = new mapboxgl.Map({
+            container: mapRef.current,
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-63.6167, -38.4161],
             zoom: 4,
-            disableDefaultUI: false,
-            mapId: 'DEMO_MAP_ID',
-        };
-
-        if (mapRef.current && !mapInstanceRef.current) {
-            mapInstanceRef.current = new Map(mapRef.current, mapOptions);
-            polylineRef.current = new window.google.maps.Polyline({
-                map: mapInstanceRef.current,
-                strokeColor: '#f59e0b',
-                strokeWeight: 4,
-                strokeOpacity: 0.8,
-            });
-
-            // Init markers
-            originMarkerRef.current = new AdvancedMarkerElement({
-                map: null,
-                gmpDraggable: true,
-                title: "Origen"
-            });
-            destinationMarkerRef.current = new AdvancedMarkerElement({
-                map: null,
-                gmpDraggable: true,
-                title: "Destino"
-            });
-
-            // Drag events
-            originMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('origin', originMarkerRef.current.position));
-            destinationMarkerRef.current.addListener('dragend', () => handleMarkerDragEnd('destination', destinationMarkerRef.current.position));
-
-        }
+        });
+        mapInstanceRef.current = map;
+        map.on('load', () => {
+            map.addSource('route', { type: 'geojson', data: { type: 'Feature' as const, properties: null, geometry: { type: 'LineString' as const, coordinates: [] } } });
+            map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#f59e0b', 'line-width': 4, 'line-opacity': 0.8 } });
+        });
+        originMarkerRef.current = new mapboxgl.Marker({ color: '#f59e0b', draggable: true });
+        originMarkerRef.current.on('dragend', async () => {
+            const { lat, lng } = originMarkerRef.current!.getLngLat();
+            await handleMarkerDragEnd('origin', { lat, lng });
+        });
+        destinationMarkerRef.current = new mapboxgl.Marker({ color: '#34d399', draggable: true });
+        destinationMarkerRef.current.on('dragend', async () => {
+            const { lat, lng } = destinationMarkerRef.current!.getLngLat();
+            await handleMarkerDragEnd('destination', { lat, lng });
+        });
     }, [handleMarkerDragEnd]);
 
     useEffect(() => {
-        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-        if (!apiKey) {
-            setApiKeyMissing(true);
-            return;
-        }
-        setApiKeyMissing(false);
-
-        loadGoogleMapsAPI(apiKey)
-            .then(() => initMapAndAutocompletes())
-            .catch((err: any) => console.error("Maps loader error", err));
-
-    }, [initMapAndAutocompletes]);
+        initMap();
+        return () => { mapInstanceRef.current?.remove(); mapInstanceRef.current = null; };
+    }, [initMap]);
 
     const calculatePrice = useCallback(() => {
         const {
@@ -268,59 +232,32 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     ]);
 
     const handleCalculateRoute = useCallback(async () => {
-        let originReq: any = null;
-        if (originPlace?.geometry?.location) originReq = originPlace.geometry.location;
-
-        let destReq: any = null;
-        if (destinationPlace?.geometry?.location) destReq = destinationPlace.geometry.location;
-
-        if (!originReq || !destReq || !window.google) {
-            if (tripData.price !== undefined) {
-                setTripData(prev => ({ ...prev, price: undefined }));
-            }
-            if (polylineRef.current) polylineRef.current.setPath([]);
+        if (!originPlace?.lat || !destinationPlace?.lat) {
+            if (tripData.price !== undefined) setTripData(prev => ({ ...prev, price: undefined }));
+            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
+            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } });
             return;
         }
-
         setIsCalculatingRoute(true);
         try {
-            const toLiteral = (loc: any) => ({
-                lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
-                lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
-            });
-
-            const directionsService = new window.google.maps.DirectionsService();
-            const result = await new Promise<any>((resolve, reject) => {
-                directionsService.route(
-                    {
-                        origin: toLiteral(originReq),
-                        destination: toLiteral(destReq),
-                        travelMode: window.google.maps.TravelMode.DRIVING,
-                    },
-                    (res: any, status: string) => {
-                        if (status === 'OK') resolve(res);
-                        else reject(new Error(`DirectionsService: ${status}`));
-                    }
+            const result = await getDirections(
+                { lat: originPlace.lat, lng: originPlace.lng },
+                { lat: destinationPlace.lat, lng: destinationPlace.lng }
+            );
+            if (!result) throw new Error('No route');
+            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
+            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: result.coordinates } });
+            setTripData(prev => ({ ...prev, distance_km: result.distanceKm, estimated_drive_time_min: result.durationMin }));
+            if (mapInstanceRef.current && result.coordinates.length > 1) {
+                const lngs = result.coordinates.map(c => c[0]);
+                const lats = result.coordinates.map(c => c[1]);
+                mapInstanceRef.current.fitBounds(
+                    [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+                    { padding: 40 }
                 );
-            });
-
-            const leg = result.routes[0].legs[0];
-            const distanceKm = leg.distance.value / 1000;
-            const driveTimeMin = Math.round(leg.duration.value / 60);
-
-            if (polylineRef.current && result.routes[0].overview_path) {
-                polylineRef.current.setPath(result.routes[0].overview_path);
             }
-
-            setTripData(prev => ({ ...prev, distance_km: distanceKm, estimated_drive_time_min: driveTimeMin }));
-
-            if (mapInstanceRef.current && result.routes[0].bounds) {
-                mapInstanceRef.current.fitBounds(result.routes[0].bounds);
-            }
-        } catch (error) {
-            console.error('Error calculating route:', error);
+        } catch {
             setError('No se pudo calcular la ruta. Verifica las direcciones.');
-            if (polylineRef.current) polylineRef.current.setPath([]);
             setTripData(prev => ({ ...prev, distance_km: undefined, estimated_drive_time_min: undefined }));
         } finally {
             setIsCalculatingRoute(false);
@@ -337,30 +274,18 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const handleOriginSelect = useCallback((place: any, inputValue: string) => {
         setOriginPlace(place);
-        if (place.geometry?.location) {
-            if (originMarkerRef.current) {
-                originMarkerRef.current.position = place.geometry.location;
-                originMarkerRef.current.map = mapInstanceRef.current;
-                if (mapInstanceRef.current) {
-                    mapInstanceRef.current.panTo(place.geometry.location);
-                    mapInstanceRef.current.setZoom(13);
-                }
-            }
+        if (place.center && originMarkerRef.current && mapInstanceRef.current) {
+            originMarkerRef.current.setLngLat(place.center).addTo(mapInstanceRef.current);
+            mapInstanceRef.current.flyTo({ center: place.center, zoom: 13 });
         }
         handleInputChange({ target: { name: 'origin', value: inputValue } } as any);
     }, [handleInputChange]);
 
     const handleDestinationSelect = useCallback((place: any, inputValue: string) => {
         setDestinationPlace(place);
-        if (place.geometry?.location) {
-            if (destinationMarkerRef.current) {
-                destinationMarkerRef.current.position = place.geometry.location;
-                destinationMarkerRef.current.map = mapInstanceRef.current;
-                if (mapInstanceRef.current) {
-                    mapInstanceRef.current.panTo(place.geometry.location);
-                    mapInstanceRef.current.setZoom(13);
-                }
-            }
+        if (place.center && destinationMarkerRef.current && mapInstanceRef.current) {
+            destinationMarkerRef.current.setLngLat(place.center).addTo(mapInstanceRef.current);
+            mapInstanceRef.current.flyTo({ center: place.center, zoom: 13 });
         }
         handleInputChange({ target: { name: 'destination', value: inputValue } } as any);
     }, [handleInputChange]);
@@ -368,24 +293,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const handleUseCurrentLocation = useCallback(() => {
         if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                if (!geocoderRef.current) return;
-                geocoderRef.current.geocode(
-                    { location: { lat: latitude, lng: longitude } },
-                    (results: any[], status: string) => {
-                        if (status === 'OK' && results[0]) {
-                            const result = results[0];
-                            const legacyPlace = {
-                                geometry: { location: { lat: () => latitude, lng: () => longitude } },
-                                formatted_address: result.formatted_address,
-                                address_components: result.address_components,
-                                place_id: result.place_id,
-                            };
-                            handleOriginSelect(legacyPlace, result.formatted_address);
-                        }
-                    }
-                );
+            async ({ coords: { latitude, longitude } }) => {
+                const address = await geocodeReverse(longitude, latitude);
+                if (!address) return;
+                const place = { center: [longitude, latitude] as [number, number], lat: latitude, lng: longitude, formatted_address: address, name: address.split(',')[0], city: '', province: '' };
+                handleOriginSelect(place, address);
             },
             (err) => console.error('Geolocation error:', err),
             { enableHighAccuracy: true, timeout: 8000 }
@@ -393,22 +305,16 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     }, [handleOriginSelect]);
 
     const handleSwapAddresses = useCallback(() => {
-        const prevOrigin = tripData.origin;
-        const prevDest = tripData.destination;
         const prevOriginPlace = originPlace;
         const prevDestPlace = destinationPlace;
         setOriginPlace(prevDestPlace);
         setDestinationPlace(prevOriginPlace);
-        setTripData(prev => ({ ...prev, origin: prevDest || '', destination: prevOrigin || '' }));
-        if (prevDestPlace?.geometry?.location && originMarkerRef.current) {
-            originMarkerRef.current.position = prevDestPlace.geometry.location;
-            originMarkerRef.current.map = mapInstanceRef.current;
-        }
-        if (prevOriginPlace?.geometry?.location && destinationMarkerRef.current) {
-            destinationMarkerRef.current.position = prevOriginPlace.geometry.location;
-            destinationMarkerRef.current.map = mapInstanceRef.current;
-        }
-    }, [tripData.origin, tripData.destination, originPlace, destinationPlace]);
+        setTripData(prev => ({ ...prev, origin: prevDestPlace?.formatted_address || '', destination: prevOriginPlace?.formatted_address || '' }));
+        if (prevDestPlace?.center && originMarkerRef.current && mapInstanceRef.current)
+            originMarkerRef.current.setLngLat(prevDestPlace.center).addTo(mapInstanceRef.current);
+        if (prevOriginPlace?.center && destinationMarkerRef.current && mapInstanceRef.current)
+            destinationMarkerRef.current.setLngLat(prevOriginPlace.center).addTo(mapInstanceRef.current);
+    }, [originPlace, destinationPlace]);
 
     const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTripData(prev => ({ ...prev, [e.target.name]: e.target.checked }));
@@ -433,12 +339,11 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const handleSetMarkerToCenter = (type: 'origin' | 'destination') => {
         if (!mapInstanceRef.current) return;
-        const center = mapInstanceRef.current.getCenter();
+        const { lat, lng } = mapInstanceRef.current.getCenter();
         const marker = type === 'origin' ? originMarkerRef.current : destinationMarkerRef.current;
         if (marker) {
-            marker.position = center;
-            marker.map = mapInstanceRef.current;
-            handleMarkerDragEnd(type, center);
+            marker.setLngLat([lng, lat]).addTo(mapInstanceRef.current);
+            handleMarkerDragEnd(type, { lat, lng });
         }
     };
 
@@ -508,10 +413,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             needs_loading_help: tripData.needs_loading_help ?? false,
             needs_unloading_help: tripData.needs_unloading_help ?? false,
             number_of_helpers: Number(tripData.number_of_helpers) || 0,
-            origin_city: originPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.origin_city || null,
-            origin_province: originPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || tripToEdit?.origin_province || null,
-            destination_city: destinationPlace?.address_components?.find((c: any) => c.types.includes('locality'))?.long_name || tripToEdit?.destination_city || null,
-            destination_province: destinationPlace?.address_components?.find((c: any) => c.types.includes('administrative_area_level_1'))?.long_name || tripToEdit?.destination_province || null,
+            origin_city: originPlace?.city || tripToEdit?.origin_city || null,
+            origin_province: originPlace?.province || tripToEdit?.origin_province || null,
+            destination_city: destinationPlace?.city || tripToEdit?.destination_city || null,
+            destination_province: destinationPlace?.province || tripToEdit?.destination_province || null,
             scheduled_date: tripData.scheduled_date || null,
         };
 
@@ -562,7 +467,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         <Card className="!p-0 overflow-hidden">
             {/* Header / Map */}
             <div className={`relative w-full ${currentStep === 1 ? (selectionMode === 'text' ? 'h-64 sm:h-80' : 'h-[65vh]') : currentStep === 2 ? 'h-64' : 'h-24'} bg-slate-800 transition-all duration-500 ease-in-out`}>
-                <div ref={mapRef} className={`w-full h-full ${apiKeyMissing ? 'hidden' : 'block'} opacity-60`}></div>
+                <div ref={mapRef} className="w-full h-full opacity-60"></div>
 
                 {/* Center Target Reticle for Map Mode */}
                 {currentStep === 1 && selectionMode === 'map' && (
@@ -572,10 +477,6 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                         <div className="w-1.5 h-1.5 rounded-full bg-slate-900/50 mt-0.5"></div>
                     </div>
                 )}
-
-                {apiKeyMissing && <div className="absolute inset-0 flex items-center justify-center p-4">
-                    <p className="text-center text-slate-400 text-sm">Mapa deshabilitado (API Key faltante).</p>
-                </div>}
 
                 {/* Stepper Overlay */}
                 <div className={`absolute top-0 left-0 w-full h-full bg-gradient-to-t from-slate-900 via-transparent to-transparent flex flex-col justify-end p-6 pointer-events-none transition-opacity duration-300 ${currentStep === 1 && selectionMode === 'map' ? 'opacity-0' : 'opacity-100'}`}>

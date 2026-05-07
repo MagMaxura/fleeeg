@@ -222,70 +222,40 @@ export const UberAddressInput: React.FC<UberAddressInputProps> = ({
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const autocompleteServiceRef = useRef<any>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setInputValue(value);
   }, [value]);
 
-  const getService = () => {
-    if (!autocompleteServiceRef.current && (window as any).google?.maps?.places) {
-      autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompleteService();
-    }
-    return autocompleteServiceRef.current;
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputValue(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (val.length < 3) { setSuggestions([]); setShowDropdown(false); return; }
-    debounceRef.current = setTimeout(() => {
-      const service = getService();
-      if (!service) return;
+    debounceRef.current = setTimeout(async () => {
       setIsLoading(true);
-      service.getPlacePredictions(
-        { input: val, componentRestrictions: { country: 'ar' }, types: ['geocode', 'establishment'] },
-        (predictions: any[], status: string) => {
-          setIsLoading(false);
-          if (status === 'OK' && predictions) {
-            setSuggestions(predictions);
-            setShowDropdown(true);
-          } else {
-            setSuggestions([]);
-            setShowDropdown(false);
-          }
-        }
-      );
+      try {
+        const { geocodeForward } = await import('../src/utils/mapbox');
+        const features = await geocodeForward(val);
+        setSuggestions(features);
+        setShowDropdown(features.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowDropdown(false);
+      } finally {
+        setIsLoading(false);
+      }
     }, 300);
   };
 
-  const handleSelectSuggestion = (prediction: any) => {
-    setInputValue(prediction.description);
+  const handleSelectSuggestion = async (feature: any) => {
+    const address = feature.place_name;
+    setInputValue(address);
     setSuggestions([]);
     setShowDropdown(false);
-    const g = (window as any).google;
-    if (!g?.maps?.places) return;
-    const dummyDiv = document.createElement('div');
-    const placesService = new g.maps.places.PlacesService(dummyDiv);
-    placesService.getDetails(
-      { placeId: prediction.place_id, fields: ['geometry', 'formatted_address', 'address_components', 'place_id', 'name'] },
-      (place: any, status: string) => {
-        if (status === 'OK' && place) {
-          onPlaceSelect(
-            {
-              geometry: { location: place.geometry.location },
-              formatted_address: place.formatted_address,
-              address_components: place.address_components,
-              place_id: place.place_id,
-              name: place.name,
-            },
-            prediction.description
-          );
-        }
-      }
-    );
+    const { featureToPlace } = await import('../src/utils/mapbox');
+    onPlaceSelect(featureToPlace(feature), address);
   };
 
   const dotClass = dotColor === 'amber' ? 'bg-amber-400' : 'bg-emerald-400';
@@ -324,26 +294,27 @@ export const UberAddressInput: React.FC<UberAddressInputProps> = ({
 
       {showDropdown && suggestions.length > 0 && (
         <div className="absolute z-50 left-0 right-0 mt-1.5 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
-          {suggestions.map((pred) => (
-            <button
-              key={pred.place_id}
-              type="button"
-              onMouseDown={() => handleSelectSuggestion(pred)}
-              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700/70 transition-colors text-left border-b border-slate-700/40 last:border-0"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-              </svg>
-              <div className="min-w-0">
-                <p className="text-sm text-slate-100 font-medium truncate">
-                  {pred.structured_formatting?.main_text || pred.description}
-                </p>
-                {pred.structured_formatting?.secondary_text && (
-                  <p className="text-xs text-slate-400 truncate mt-0.5">{pred.structured_formatting.secondary_text}</p>
-                )}
-              </div>
-            </button>
-          ))}
+          {suggestions.map((feat: any) => {
+            const secondary = feat.place_name.replace(feat.text + ', ', '');
+            return (
+              <button
+                key={feat.id}
+                type="button"
+                onMouseDown={() => handleSelectSuggestion(feat)}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700/70 transition-colors text-left border-b border-slate-700/40 last:border-0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-100 font-medium truncate">{feat.text}</p>
+                  {secondary && secondary !== feat.text && (
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{secondary}</p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 import { Button, Card, Icon, Input } from '../../ui.tsx';
 import type { PayoutRequest, Profile } from '../../../src/types.ts';
-import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
+import { mapboxgl } from '../../../src/utils/mapbox';
 
 const AdminDashboard: React.FC = () => {
     const context = useContext(AppContext);
@@ -29,70 +29,42 @@ const AdminDashboard: React.FC = () => {
     const markersRef = useRef<{ [key: string]: any }>({});
 
     useEffect(() => {
-        if (activeTab === 'map') {
-            const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-            if (!apiKey) return;
-
-            loadGoogleMapsAPI(apiKey).then(async () => {
-                if (!window.google || !mapRef.current) return;
-                
-                const { Map } = await window.google.maps.importLibrary("maps");
-                
-                if (!mapInstanceRef.current) {
-                    mapInstanceRef.current = new Map(mapRef.current, {
-                        center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
-                        zoom: 12,
-                        mapId: 'DEMO_MAP_ID',
-                    });
-                }
-            }).catch(err => console.error("Admin map error", err));
-        }
+        if (activeTab !== 'map' || !mapRef.current || mapInstanceRef.current) return;
+        mapInstanceRef.current = new mapboxgl.Map({
+            container: mapRef.current,
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [-58.3816, -34.6037],
+            zoom: 12,
+        });
     }, [activeTab]);
 
-    // Update markers when driverLocations change
     useEffect(() => {
-        if (activeTab === 'map' && mapInstanceRef.current && window.google) {
-            const updateMarkers = async () => {
-                const { AdvancedMarkerElement, PinElement } = await window.google.maps.importLibrary("marker");
-                
-                // Remove markers for drivers who are no longer online or not in driverLocations
-                const currentDriverIds = new Set(driverLocations.filter(l => l.is_online).map(l => l.driver_id));
-                Object.keys(markersRef.current).forEach(id => {
-                    if (!currentDriverIds.has(id)) {
-                        markersRef.current[id].map = null;
-                        delete markersRef.current[id];
-                    }
-                });
+        if (activeTab !== 'map' || !mapInstanceRef.current) return;
 
-                // Add or update markers
-                driverLocations.forEach(loc => {
-                    if (!loc.is_online) return;
+        const currentDriverIds = new Set(driverLocations.filter(l => l.is_online).map(l => l.driver_id));
 
-                    const driver = users.find(u => u.id === loc.driver_id);
-                    const position = { lat: loc.lat, lng: loc.lng };
+        Object.keys(markersRef.current).forEach(id => {
+            if (!currentDriverIds.has(id)) {
+                markersRef.current[id].remove();
+                delete markersRef.current[id];
+            }
+        });
 
-                    if (markersRef.current[loc.driver_id]) {
-                        markersRef.current[loc.driver_id].position = position;
-                    } else {
-                        const pin = new PinElement({
-                            background: '#f59e0b',
-                            borderColor: '#92400e',
-                            glyphColor: '#ffffff',
-                            scale: 1.2,
-                        });
-
-                        const marker = new AdvancedMarkerElement({
-                            map: mapInstanceRef.current,
-                            position: position,
-                            content: pin.element,
-                            title: driver?.full_name || 'Conductor',
-                        });
-                        markersRef.current[loc.driver_id] = marker;
-                    }
-                });
-            };
-            updateMarkers();
-        }
+        driverLocations.forEach(loc => {
+            if (!loc.is_online) return;
+            const driver = users.find(u => u.id === loc.driver_id);
+            if (markersRef.current[loc.driver_id]) {
+                markersRef.current[loc.driver_id].setLngLat([loc.lng, loc.lat]);
+            } else {
+                const el = document.createElement('div');
+                el.style.cssText = 'width:36px;height:36px;background:#f59e0b;border-radius:50%;border:2px solid #92400e;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+                el.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>';
+                el.title = driver?.full_name || 'Conductor';
+                markersRef.current[loc.driver_id] = new mapboxgl.Marker({ element: el })
+                    .setLngLat([loc.lng, loc.lat])
+                    .addTo(mapInstanceRef.current!);
+            }
+        });
     }, [driverLocations, activeTab, users]);
 
     const pendingPayouts = useMemo(() => 
