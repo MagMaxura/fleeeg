@@ -2,7 +2,7 @@
 import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../../AppContext.ts';
 import { Button, Card, Icon, Input } from '../../ui.tsx';
-import type { PayoutRequest, Profile, DriverLocation } from '../../../src/types.ts';
+import type { PayoutRequest, Profile } from '../../../src/types.ts';
 import { loadGoogleMapsAPI } from '../../../src/utils/googleMapsLoader';
 
 const AdminDashboard: React.FC = () => {
@@ -42,7 +42,7 @@ const AdminDashboard: React.FC = () => {
                     mapInstanceRef.current = new Map(mapRef.current, {
                         center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
                         zoom: 12,
-                        mapId: 'ADMIN_TRACKING_MAP',
+                        mapId: 'DEMO_MAP_ID',
                     });
                 }
             }).catch(err => console.error("Admin map error", err));

@@ -253,7 +253,7 @@ const LiveTrackingMap: React.FC<{ trip: Trip }> = ({ trip }) => {
         const map = new window.google.maps.Map(mapRef.current, {
             center: { lat: -34.6037, lng: -58.3816 },
             zoom: 14,
-            mapId: 'LIVE_TRACKING_MAP',
+            mapId: 'DEMO_MAP_ID',
             disableDefaultUI: true,
             gestureHandling: 'cooperative',
         });

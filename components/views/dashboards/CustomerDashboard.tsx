@@ -173,7 +173,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             center: { lat: -38.4161, lng: -63.6167 }, // Center of Argentina
             zoom: 4,
             disableDefaultUI: false,
-            mapId: 'DEMO_MAP_ID_FLEEEG', // Required for AdvancedMarkerElement
+            mapId: 'DEMO_MAP_ID',
         };
 
         if (mapRef.current && !mapInstanceRef.current) {
