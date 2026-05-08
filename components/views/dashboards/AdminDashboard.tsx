@@ -1,8 +1,8 @@
 
 import React, { useContext, useMemo, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../../AppContext.ts';
-import { Button, Card, Icon, Input } from '../../ui.tsx';
-import type { PayoutRequest, Profile } from '../../../src/types.ts';
+import { Button, Card, Icon, Input, TextArea } from '../../ui.tsx';
+import type { PayoutRequest, Profile, Trip } from '../../../src/types.ts';
 import { mapboxgl } from '../../../src/utils/mapbox';
 
 const AdminDashboard: React.FC = () => {
@@ -19,6 +19,13 @@ const AdminDashboard: React.FC = () => {
     const [paymentModal, setPaymentModal] = useState<{ id: string; open: boolean }>({ id: '', open: false });
     const [externalRef, setExternalRef] = useState('');
     
+    // Trip admin modals
+    const [tripCancelModal, setTripCancelModal] = useState<{ trip: Trip | null }>({ trip: null });
+    const [tripDeleteModal, setTripDeleteModal] = useState<{ trip: Trip | null }>({ trip: null });
+    const [disputeModal, setDisputeModal] = useState<{ trip: Trip | null }>({ trip: null });
+    const [adminNote, setAdminNote] = useState('');
+    const [adjustedPrice, setAdjustedPrice] = useState('');
+
     // Filters
     const [tripSearch, setTripSearch] = useState('');
     const [userSearch, setUserSearch] = useState('');
@@ -119,9 +126,40 @@ const AdminDashboard: React.FC = () => {
         if (!context || !confirm(`¿Estás seguro de cambiar el rol de este usuario a ${newRole}?`)) return;
         setIsLoading(userId);
         const result = await context.updateUserRole(userId, newRole);
-        if (result) {
-            alert(result.message);
-        }
+        if (result) alert(result.message);
+        setIsLoading(null);
+    };
+
+    const handleAdminCancel = async () => {
+        if (!tripCancelModal.trip || !context) return;
+        const id = tripCancelModal.trip.id;
+        setIsLoading(String(id));
+        await context.updateTrip(id, { status: 'cancelled' as any, admin_note: adminNote } as any);
+        setTripCancelModal({ trip: null });
+        setAdminNote('');
+        setIsLoading(null);
+    };
+
+    const handleAdminDelete = async () => {
+        if (!tripDeleteModal.trip || !context) return;
+        const id = tripDeleteModal.trip.id;
+        setIsLoading(String(id));
+        await context.deleteTrip(id);
+        setTripDeleteModal({ trip: null });
+        setIsLoading(null);
+    };
+
+    const handleDisputeAction = async (action: 'complete' | 'paid' | 'cancelled') => {
+        if (!disputeModal.trip || !context) return;
+        const id = disputeModal.trip.id;
+        setIsLoading(String(id));
+        const updates: any = { status: action };
+        if (adjustedPrice) updates.final_price = Number(adjustedPrice);
+        if (adminNote) updates.admin_note = adminNote;
+        await context.updateTrip(id, updates);
+        setDisputeModal({ trip: null });
+        setAdminNote('');
+        setAdjustedPrice('');
         setIsLoading(null);
     };
 
@@ -339,9 +377,22 @@ const AdminDashboard: React.FC = () => {
                                             <p className="text-lg font-bold text-amber-400">${trip.price ? trip.price.toLocaleString() : '0'}</p>
                                         </div>
 
-                                        <div className="flex justify-end">
+                                        <div className="flex flex-wrap justify-end gap-1.5">
                                             <Button variant="ghost" size="sm" onClick={() => context?.viewTripDetails(trip.id)}>
-                                                Detalles
+                                                Ver
+                                            </Button>
+                                            {!['cancelled', 'paid'].includes(trip.status) && (
+                                                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 border-none text-white text-xs" onClick={() => setDisputeModal({ trip })}>
+                                                    Intervenir
+                                                </Button>
+                                            )}
+                                            {!['completed', 'paid', 'cancelled'].includes(trip.status) && (
+                                                <Button size="sm" className="bg-orange-600 hover:bg-orange-500 border-none text-white text-xs" onClick={() => setTripCancelModal({ trip })}>
+                                                    Cancelar
+                                                </Button>
+                                            )}
+                                            <Button size="sm" className="bg-red-700 hover:bg-red-600 border-none text-white text-xs" onClick={() => setTripDeleteModal({ trip })}>
+                                                Eliminar
                                             </Button>
                                         </div>
                                     </div>
@@ -477,6 +528,98 @@ const AdminDashboard: React.FC = () => {
                             <Button variant="ghost" onClick={() => setRejectionModal({ id: '', open: false })}>Cancelar</Button>
                             <Button className="bg-red-500 hover:bg-red-600 border-none" onClick={() => handleStatusUpdate(rejectionModal.id, 'rejected', rejectionReason)}>Confirmar Rechazo</Button>
                         </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Cancel Trip Modal */}
+            {tripCancelModal.trip && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <Card className="w-full max-w-md animate-scaleIn border-orange-500/30">
+                        <h3 className="text-xl font-bold text-slate-100 mb-1">Cancelar Viaje #{tripCancelModal.trip.id}</h3>
+                        <p className="text-slate-400 text-sm mb-4">{tripCancelModal.trip.origin} → {tripCancelModal.trip.destination}</p>
+                        <TextArea label="Motivo de cancelación (opcional)" id="cancel-note" value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="Ej: Disputa no resuelta entre las partes" />
+                        <div className="flex gap-3 justify-end mt-6">
+                            <Button variant="ghost" onClick={() => { setTripCancelModal({ trip: null }); setAdminNote(''); }}>Volver</Button>
+                            <Button className="bg-orange-600 hover:bg-orange-500 border-none" isLoading={isLoading === String(tripCancelModal.trip.id)} onClick={handleAdminCancel}>
+                                Confirmar Cancelación
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Delete Trip Modal */}
+            {tripDeleteModal.trip && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <Card className="w-full max-w-md animate-scaleIn border-red-500/30">
+                        <h3 className="text-xl font-bold text-red-400 mb-1">Eliminar Viaje #{tripDeleteModal.trip.id}</h3>
+                        <p className="text-slate-300 text-sm mb-2">{tripDeleteModal.trip.origin} → {tripDeleteModal.trip.destination}</p>
+                        <p className="text-slate-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                            Esta acción es <strong className="text-red-300">permanente e irreversible</strong>. El viaje y todos sus datos asociados serán eliminados de la base de datos.
+                        </p>
+                        <div className="flex gap-3 justify-end mt-6">
+                            <Button variant="ghost" onClick={() => setTripDeleteModal({ trip: null })}>Cancelar</Button>
+                            <Button className="bg-red-600 hover:bg-red-500 border-none" isLoading={isLoading === String(tripDeleteModal.trip.id)} onClick={handleAdminDelete}>
+                                Sí, eliminar permanentemente
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Dispute / Intervention Modal */}
+            {disputeModal.trip && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <Card className="w-full max-w-lg animate-scaleIn border-indigo-500/30">
+                        <h3 className="text-xl font-bold text-indigo-300 mb-1 flex items-center gap-2">
+                            <Icon type="star" className="w-5 h-5" />
+                            Intervención Administrativa — Viaje #{disputeModal.trip.id}
+                        </h3>
+
+                        {/* Trip summary */}
+                        <div className="bg-slate-900/60 rounded-lg p-3 mb-4 text-sm space-y-1.5">
+                            <div className="flex justify-between"><span className="text-slate-500">Estado</span><StatusBadge status={disputeModal.trip.status} /></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="text-slate-200">{getUserName(disputeModal.trip.customer_id)}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Fletero</span><span className="text-slate-200">{getUserName(disputeModal.trip.driver_id)}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Origen</span><span className="text-slate-200 text-right max-w-[60%] truncate">{disputeModal.trip.origin}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Destino</span><span className="text-slate-200 text-right max-w-[60%] truncate">{disputeModal.trip.destination}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Precio acordado</span><span className="text-amber-400 font-bold">${(disputeModal.trip.price || 0).toLocaleString()}</span></div>
+                        </div>
+
+                        <div className="space-y-3 mb-4">
+                            <Input
+                                label="Ajustar precio final (opcional)"
+                                id="adjusted-price"
+                                type="number"
+                                value={adjustedPrice}
+                                onChange={e => setAdjustedPrice(e.target.value)}
+                                placeholder={`Precio actual: $${(disputeModal.trip.price || 0).toLocaleString()}`}
+                            />
+                            <TextArea
+                                label="Nota administrativa (opcional)"
+                                id="dispute-note"
+                                value={adminNote}
+                                onChange={e => setAdminNote(e.target.value)}
+                                placeholder="Describe la resolución para el historial..."
+                            />
+                        </div>
+
+                        <p className="text-xs text-slate-500 mb-4">Elegí la acción a aplicar sobre el viaje:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+                            <Button size="sm" className="bg-green-600 hover:bg-green-500 border-none text-sm" isLoading={isLoading === String(disputeModal.trip.id)} onClick={() => handleDisputeAction('complete')}>
+                                ✓ Forzar completado
+                            </Button>
+                            <Button size="sm" className="bg-amber-600 hover:bg-amber-500 border-none text-sm" isLoading={isLoading === String(disputeModal.trip.id)} onClick={() => handleDisputeAction('paid')}>
+                                $ Marcar como pagado
+                            </Button>
+                            <Button size="sm" className="bg-orange-700 hover:bg-orange-600 border-none text-sm" isLoading={isLoading === String(disputeModal.trip.id)} onClick={() => handleDisputeAction('cancelled')}>
+                                ✕ Cancelar viaje
+                            </Button>
+                        </div>
+                        <Button variant="ghost" className="w-full" onClick={() => { setDisputeModal({ trip: null }); setAdminNote(''); setAdjustedPrice(''); }}>
+                            Cerrar sin cambios
+                        </Button>
                     </Card>
                 </div>
             )}
