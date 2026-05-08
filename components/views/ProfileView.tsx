@@ -6,8 +6,7 @@ import { AppContext } from '../../AppContext.ts';
 // FIX: Corrected the import path for types to point to 'src/types.ts' instead of the empty 'types.ts' file at the root, resolving the module resolution error.
 // FIX: Removed .ts extension for consistent module resolution.
 import type { Profile } from '../../src/types';
-import { Button, Input, Card, Icon, Select, PlacePicker } from '../ui.tsx';
-import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader';
+import { Button, Input, Card, Icon, Select, UberAddressInput } from '../ui.tsx';
 
 declare global {
     interface Window {
@@ -30,11 +29,9 @@ const ProfileView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const vehicleFileInputRef = useRef<HTMLInputElement>(null);
-    const addressRef = useRef<any>(null);
 
 
     useEffect(() => {
@@ -45,35 +42,12 @@ const ProfileView: React.FC = () => {
     }, [user]);
 
     const handlePlaceSelect = useCallback((place: any, addressString: string) => {
-        if (place && place.address_components) {
-            const components = place.address_components;
-            const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
-
-            const street_number = getComponent('street_number');
-            const route = getComponent('route');
-
-            setFormState(prev => ({
-                ...prev,
-                address: `${route}${street_number ? ' ' + street_number : ''}`,
-                city: getComponent('locality'),
-                province: getComponent('administrative_area_level_1'),
-            }));
-        }
-    }, []);
-
-    useEffect(() => {
-        // CRITICAL SECURITY FIX: The API key is now read from environment variables.
-        const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-
-        if (!apiKey) {
-            console.warn("Google Maps API Key not provided. Address autocomplete will be disabled.");
-            setApiKeyMissing(true);
-            return;
-        }
-        setApiKeyMissing(false);
-
-        loadGoogleMapsAPI(apiKey)
-            .catch((err: any) => console.error("Could not load Google Maps script", err));
+        setFormState(prev => ({
+            ...prev,
+            address: place.name || addressString.split(',')[0],
+            city: place.city || '',
+            province: place.province || '',
+        }));
     }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -231,10 +205,7 @@ const ProfileView: React.FC = () => {
                         <div className="grid md:grid-cols-2 gap-6">
                             <Input name="phone" label="Teléfono" type="tel" value={formState.phone || ''} onChange={handleInputChange} required />
                             <div>
-                                <PlacePicker name="address" label="Dirección" defaultValue={formState.address || ''} onPlaceSelect={handlePlaceSelect} ref={addressRef} required placeholder="Comienza a escribir tu dirección..." />
-                                {apiKeyMissing && (
-                                    <p className="text-xs text-amber-400/80 mt-1 pl-1">Autocompletado deshabilitado.</p>
-                                )}
+                                <UberAddressInput placeholder="Comienza a escribir tu dirección..." value={formState.address || ''} onPlaceSelect={handlePlaceSelect} />
                             </div>
                         </div>
 
