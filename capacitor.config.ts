@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
-    allowNavigation: ['*.supabase.co', '*.google.com', '*.mercadopago.com'],
+    allowNavigation: ['*.supabase.co', '*.google.com', '*.mercadopago.com', '*.mapbox.com', 'api.mapbox.com', 'events.mapbox.com'],
   },
   android: {
     buildOptions: {

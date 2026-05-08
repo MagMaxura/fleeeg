@@ -88,6 +88,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
 
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<mapboxgl.Map | null>(null);
+    const mapLoadedRef = useRef(false);
     const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
     const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
@@ -131,8 +132,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             setCargoPhotos([]);
             setOriginPlace(null);
             setDestinationPlace(null);
-            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
-            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } });
+            setRouteData([]);
             originMarkerRef.current?.remove();
             destinationMarkerRef.current?.remove();
         }
@@ -151,34 +151,50 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         }
     }, []);
 
+    const setRouteData = (coords: [number, number][]) => {
+        if (!mapLoadedRef.current || !mapInstanceRef.current) return;
+        try {
+            (mapInstanceRef.current.getSource('route') as mapboxgl.GeoJSONSource)
+                ?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: coords } });
+        } catch { /* map not ready */ }
+    };
+
     const initMap = useCallback(() => {
         if (!mapRef.current || mapInstanceRef.current) return;
-        const map = new mapboxgl.Map({
-            container: mapRef.current,
-            style: 'mapbox://styles/mapbox/dark-v11',
-            center: [-63.6167, -38.4161],
-            zoom: 4,
-        });
-        mapInstanceRef.current = map;
-        map.on('load', () => {
-            map.addSource('route', { type: 'geojson', data: { type: 'Feature' as const, properties: null, geometry: { type: 'LineString' as const, coordinates: [] } } });
-            map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#f59e0b', 'line-width': 4, 'line-opacity': 0.8 } });
-        });
-        originMarkerRef.current = new mapboxgl.Marker({ color: '#f59e0b', draggable: true });
-        originMarkerRef.current.on('dragend', async () => {
-            const { lat, lng } = originMarkerRef.current!.getLngLat();
-            await handleMarkerDragEnd('origin', { lat, lng });
-        });
-        destinationMarkerRef.current = new mapboxgl.Marker({ color: '#34d399', draggable: true });
-        destinationMarkerRef.current.on('dragend', async () => {
-            const { lat, lng } = destinationMarkerRef.current!.getLngLat();
-            await handleMarkerDragEnd('destination', { lat, lng });
-        });
+        try {
+            const map = new mapboxgl.Map({
+                container: mapRef.current,
+                style: 'mapbox://styles/mapbox/dark-v11',
+                center: [-63.6167, -38.4161],
+                zoom: 4,
+            });
+            mapInstanceRef.current = map;
+            map.on('load', () => {
+                mapLoadedRef.current = true;
+                map.addSource('route', { type: 'geojson', data: { type: 'Feature' as const, properties: null, geometry: { type: 'LineString' as const, coordinates: [] } } });
+                map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#f59e0b', 'line-width': 4, 'line-opacity': 0.8 } });
+            });
+            map.on('error', () => { /* silence map errors on WebView */ });
+            originMarkerRef.current = new mapboxgl.Marker({ color: '#f59e0b', draggable: true });
+            originMarkerRef.current.on('dragend', async () => {
+                const { lat, lng } = originMarkerRef.current!.getLngLat();
+                await handleMarkerDragEnd('origin', { lat, lng });
+            });
+            destinationMarkerRef.current = new mapboxgl.Marker({ color: '#34d399', draggable: true });
+            destinationMarkerRef.current.on('dragend', async () => {
+                const { lat, lng } = destinationMarkerRef.current!.getLngLat();
+                await handleMarkerDragEnd('destination', { lat, lng });
+            });
+        } catch { /* map unavailable on this device */ }
     }, [handleMarkerDragEnd]);
 
     useEffect(() => {
         initMap();
-        return () => { mapInstanceRef.current?.remove(); mapInstanceRef.current = null; };
+        return () => {
+            mapLoadedRef.current = false;
+            mapInstanceRef.current?.remove();
+            mapInstanceRef.current = null;
+        };
     }, [initMap]);
 
     const calculatePrice = useCallback(() => {
@@ -233,8 +249,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
     const handleCalculateRoute = useCallback(async () => {
         if (!originPlace?.lat || !destinationPlace?.lat) {
             if (tripData.price !== undefined) setTripData(prev => ({ ...prev, price: undefined }));
-            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
-            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } });
+            setRouteData([]);
             return;
         }
         setIsCalculatingRoute(true);
@@ -244,8 +259,7 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
                 { lat: destinationPlace.lat, lng: destinationPlace.lng }
             );
             if (!result) throw new Error('No route');
-            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
-            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: result.coordinates } });
+            setRouteData(result.coordinates);
             setTripData(prev => ({ ...prev, distance_km: result.distanceKm, estimated_drive_time_min: result.durationMin }));
             if (mapInstanceRef.current && result.coordinates.length > 1) {
                 const lngs = result.coordinates.map(c => c[0]);
