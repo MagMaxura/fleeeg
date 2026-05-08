@@ -1,8 +1,7 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../../AppContext.ts';
 import type { UserRole, Profile, VehicleType } from '../../src/types.ts';
-import { Button, Input, Card, Icon, Select, PlacePicker } from '../ui.tsx';
-import { loadGoogleMapsAPI } from '../../src/utils/googleMapsLoader.ts';
+import { Button, Input, Card, Icon, Select, UberAddressInput } from '../ui.tsx';
 import { supabase } from '../../services/supabaseService.ts';
 
 const OnboardingView: React.FC = () => {
@@ -30,28 +29,12 @@ const OnboardingView: React.FC = () => {
   const idFrontInputRef = useRef<HTMLInputElement>(null);
   const idBackInputRef = useRef<HTMLInputElement>(null);
   const licenseInputRef = useRef<HTMLInputElement>(null);
-  const addressRef = useRef<any>(null);
-
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
   const [preRegisteredUserId, setPreRegisteredUserId] = useState<string | null>(null);
   const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
 
   const [formState, setFormState] = useState<{ [key: string]: any }>({});
-
-  useEffect(() => {
-    const apiKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      setApiKeyMissing(true);
-      return;
-    }
-    setApiKeyMissing(false);
-    loadGoogleMapsAPI(apiKey).catch((err) => {
-      console.error('Maps loader error in onboarding:', err);
-      setApiKeyMissing(true);
-    });
-  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormState(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -62,20 +45,12 @@ const OnboardingView: React.FC = () => {
   };
 
   const handlePlaceSelect = useCallback((place: any, addressString: string) => {
-    if (place && place.address_components) {
-      const components = place.address_components;
-      const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || '';
-
-      const street_number = getComponent('street_number');
-      const route = getComponent('route');
-
-      setFormState(prev => ({
-        ...prev,
-        address: `${route}${street_number ? ' ' + street_number : ''}`,
-        city: getComponent('locality'),
-        province: getComponent('administrative_area_level_1'),
-      }));
-    }
+    setFormState(prev => ({
+      ...prev,
+      address: place.name || addressString.split(',')[0],
+      city: place.city || '',
+      province: place.province || '',
+    }));
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'vehicle' | 'idFront' | 'idBack' | 'license') => {
@@ -471,12 +446,10 @@ const OnboardingView: React.FC = () => {
                     <Input name="full_name" label="Nombre Completo" required onChange={handleInputChange} value={formState.full_name || ''} />
                     <Input name="dni" label="DNI" required onChange={handleInputChange} value={formState.dni || ''} />
                     <Input name="phone" label="Teléfono" type="tel" required onChange={handleInputChange} value={formState.phone || ''} />
-                    {apiKeyMissing && (
-                      <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                        La búsqueda automática de direcciones requiere configurar VITE_GOOGLE_MAPS_API_KEY en producción.
-                      </p>
-                    )}
-                    <PlacePicker name="address" label="Dirección Habitual" required onPlaceSelect={handlePlaceSelect} ref={addressRef} defaultValue={formState.address || ''} placeholder="Ej: Calle falsa 123..." />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Dirección Habitual</label>
+                      <UberAddressInput placeholder="Ej: Calle falsa 123..." value={formState.address || ''} onPlaceSelect={handlePlaceSelect} />
+                    </div>
                     
                     <div className="flex items-center gap-4 pt-4 border-t border-slate-800">
                         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
