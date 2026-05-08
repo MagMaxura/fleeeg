@@ -131,11 +131,10 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
             setCargoPhotos([]);
             setOriginPlace(null);
             setDestinationPlace(null);
-            if (polylineRef.current) {
-                polylineRef.current.setPath([]);
-            }
-            if (originMarkerRef.current) originMarkerRef.current.map = null;
-            if (destinationMarkerRef.current) destinationMarkerRef.current.map = null;
+            const src = mapInstanceRef.current?.getSource('route') as mapboxgl.GeoJSONSource | undefined;
+            src?.setData({ type: 'Feature', properties: null, geometry: { type: 'LineString', coordinates: [] } });
+            originMarkerRef.current?.remove();
+            destinationMarkerRef.current?.remove();
         }
     }, [tripToEdit, isEditMode]);
 
