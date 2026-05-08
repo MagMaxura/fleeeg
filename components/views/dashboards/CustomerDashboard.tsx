@@ -303,18 +303,18 @@ const TripForm: React.FC<{ tripToEdit?: Trip | null; onFinish: () => void; }> = 
         handleInputChange({ target: { name: 'destination', value: inputValue } } as any);
     }, [handleInputChange]);
 
-    const handleUseCurrentLocation = useCallback(() => {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
-            async ({ coords: { latitude, longitude } }) => {
-                const address = await geocodeReverse(longitude, latitude);
-                if (!address) return;
-                const place = { center: [longitude, latitude] as [number, number], lat: latitude, lng: longitude, formatted_address: address, name: address.split(',')[0], city: '', province: '' };
-                handleOriginSelect(place, address);
-            },
-            (err) => console.error('Geolocation error:', err),
-            { enableHighAccuracy: true, timeout: 8000 }
-        );
+    const handleUseCurrentLocation = useCallback(async () => {
+        try {
+            const { Geolocation } = await import('@capacitor/geolocation');
+            const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000 });
+            const { latitude, longitude } = position.coords;
+            const address = await geocodeReverse(longitude, latitude);
+            if (!address) return;
+            const place = { center: [longitude, latitude] as [number, number], lat: latitude, lng: longitude, formatted_address: address, name: address.split(',')[0], city: '', province: '' };
+            handleOriginSelect(place, address);
+        } catch (err) {
+            console.error('Geolocation error:', err);
+        }
     }, [handleOriginSelect]);
 
     const handleSwapAddresses = useCallback(() => {

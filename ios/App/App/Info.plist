@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fleteen necesita tu ubicación para mostrarte fleteros cercanos y calcular rutas.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Fleteen usa tu ubicación en segundo plano para que los clientes puedan rastrearte durante el viaje.</string>
 </dict>
 </plist>

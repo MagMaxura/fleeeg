@@ -1,5 +1,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Geolocation } from '@capacitor/geolocation';
+import { getNativePreference, setNativePreference, removeNativePreference } from './src/utils/capacitorStorage';
 import type { Session } from '@supabase/supabase-js';
 
 // Foundational types and context
@@ -59,9 +61,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
-  const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>(
-    () => (localStorage.getItem('fleteen_location_permission') as PermissionState) || 'checking'
-  );
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>('checking');
   const [sessionRejectedTripIds, setSessionRejectedTripIds] = useState<Set<number>>(new Set());
   const [notifications, setNotifications] = useState<any[]>([]);
 
@@ -83,21 +83,32 @@ const App: React.FC = () => {
     offersRef.current = offers;
   }, [offers]);
 
-  // --- GEOLOCATION LOGIC ---
-  const getLocation = useCallback(() => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation(position.coords);
-        setLocationPermissionStatus('granted');
-        localStorage.setItem('fleteen_location_permission', 'granted');
-      },
-      (error) => {
-        console.warn(`Geolocation error: ${error.message}`);
+  // --- GEOLOCATION LOGIC (native Capacitor plugin) ---
+  const getLocation = useCallback(async () => {
+    try {
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location === 'denied') {
         setLocationPermissionStatus('denied');
-        localStorage.setItem('fleteen_location_permission', 'denied');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+        await setNativePreference('fleteen_location_permission', 'denied');
+        return;
+      }
+      if (perm.location === 'prompt' || perm.location === 'prompt-with-rationale') {
+        const result = await Geolocation.requestPermissions();
+        if (result.location === 'denied') {
+          setLocationPermissionStatus('denied');
+          await setNativePreference('fleteen_location_permission', 'denied');
+          return;
+        }
+      }
+      const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      setUserLocation(position.coords as any);
+      setLocationPermissionStatus('granted');
+      await setNativePreference('fleteen_location_permission', 'granted');
+    } catch (err) {
+      console.warn('Geolocation error:', err);
+      setLocationPermissionStatus('denied');
+      await setNativePreference('fleteen_location_permission', 'denied');
+    }
   }, []);
 
   const requestLocationPermission = useCallback(() => {
@@ -133,12 +144,13 @@ const App: React.FC = () => {
     cleanBrokenSession();
   }, []);
 
-  // --- DRIVER TRACKING SYNC ---
+  // --- DRIVER TRACKING SYNC (native GPS) ---
   useEffect(() => {
     if (!user || user.role !== 'driver') return;
 
-    let watchId: number;
-    const updateLocation = async (coords: GeolocationCoordinates) => {
+    let watchId: string | null = null;
+
+    const updateLocation = async (coords: { latitude: number; longitude: number }) => {
         const { error } = await supabase
             .from('driver_locations')
             .upsert({
@@ -146,22 +158,21 @@ const App: React.FC = () => {
                 lat: coords.latitude,
                 lng: coords.longitude,
                 updated_at: new Date().toISOString(),
-                is_online: true
+                is_online: true,
             });
-            
-        if (error) console.error("Error updating global driver location:", error);
+        if (error) console.error("Error updating driver location:", error);
     };
 
-    if ('geolocation' in navigator) {
-        watchId = navigator.geolocation.watchPosition(
-            (position) => updateLocation(position.coords),
-            (error) => console.warn("Driver tracking error:", error),
-            { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
-        );
-    }
+    Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 10000 },
+        (position, error) => {
+            if (error) { console.warn("Driver tracking error:", error); return; }
+            if (position) updateLocation(position.coords);
+        }
+    ).then(id => { watchId = id; });
 
     return () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (watchId) Geolocation.clearWatch({ id: watchId });
     };
   }, [user?.id, user?.role]);
 
@@ -191,19 +202,11 @@ const App: React.FC = () => {
   }, [user?.id, user?.role]);
 
   useEffect(() => {
-    // Always attempt to get location on startup — this handles both iOS (no permissions API)
-    // and desktop. If already granted (from localStorage), this silently updates coords.
-    getLocation();
-
-    if (navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' }).then((permissionStatus) => {
-        permissionStatus.onchange = () => {
-          setLocationPermissionStatus(permissionStatus.state);
-          localStorage.setItem('fleteen_location_permission', permissionStatus.state);
-          if (permissionStatus.state === 'granted') getLocation();
-        };
-      }).catch(() => { /* permissions API not supported on this device */ });
-    }
+    // Restore persisted permission status, then attempt to get location
+    getNativePreference('fleteen_location_permission').then(async (stored) => {
+      if (stored) setLocationPermissionStatus(stored as PermissionState);
+      await getLocation();
+    });
   }, [getLocation]);
   // --- END GEOLOCATION LOGIC ---
 
@@ -1360,7 +1363,7 @@ const App: React.FC = () => {
             <p>Ajustes → Apps → Fleteen → Permisos → Ubicación → <span className="text-amber-400 font-semibold">Permitir</span></p>
           </div>
           <button
-            onClick={() => { localStorage.removeItem('fleteen_location_permission'); requestLocationPermission(); }}
+            onClick={() => { removeNativePreference('fleteen_location_permission').then(() => requestLocationPermission()); }}
             className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition-colors"
           >
             Ya lo habilité, reintentar
