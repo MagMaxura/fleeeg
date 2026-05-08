@@ -18,4 +18,11 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Create and export the Supabase client, correctly typed with the Database definition.
 // This is the standard and recommended way to initialize the client.
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false, // Required for Capacitor — prevents URL parsing issues
+    storage: window.localStorage,
+  },
+});

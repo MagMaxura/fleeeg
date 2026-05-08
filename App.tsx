@@ -59,7 +59,9 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<GeolocationCoordinates | null>(null);
-  const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>('checking');
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<PermissionState | 'checking'>(
+    () => (localStorage.getItem('fleteen_location_permission') as PermissionState) || 'checking'
+  );
   const [sessionRejectedTripIds, setSessionRejectedTripIds] = useState<Set<number>>(new Set());
   const [notifications, setNotifications] = useState<any[]>([]);
 
@@ -87,10 +89,12 @@ const App: React.FC = () => {
       (position) => {
         setUserLocation(position.coords);
         setLocationPermissionStatus('granted');
+        localStorage.setItem('fleteen_location_permission', 'granted');
       },
       (error) => {
         console.warn(`Geolocation error: ${error.message}`);
         setLocationPermissionStatus('denied');
+        localStorage.setItem('fleteen_location_permission', 'denied');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -187,19 +191,18 @@ const App: React.FC = () => {
   }, [user?.id, user?.role]);
 
   useEffect(() => {
+    // Always attempt to get location on startup — this handles both iOS (no permissions API)
+    // and desktop. If already granted (from localStorage), this silently updates coords.
+    getLocation();
+
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then((permissionStatus) => {
-        setLocationPermissionStatus(permissionStatus.state);
-        if (permissionStatus.state === 'granted') {
-          getLocation();
-        }
         permissionStatus.onchange = () => {
           setLocationPermissionStatus(permissionStatus.state);
+          localStorage.setItem('fleteen_location_permission', permissionStatus.state);
+          if (permissionStatus.state === 'granted') getLocation();
         };
-      });
-    } else {
-      // Fallback for older browsers
-      setLocationPermissionStatus('prompt');
+      }).catch(() => { /* permissions API not supported on this device */ });
     }
   }, [getLocation]);
   // --- END GEOLOCATION LOGIC ---
@@ -1330,6 +1333,38 @@ const App: React.FC = () => {
       return (
         <div className="flex justify-center items-center min-h-screen">
           <Spinner />
+        </div>
+      );
+    }
+
+    if (locationPermissionStatus === 'denied' && user) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center animate-fadeSlideIn">
+          <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-100 mb-3">Ubicación requerida</h2>
+          <p className="text-slate-400 max-w-sm mb-2">
+            Fleteen necesita acceso a tu ubicación para funcionar correctamente.
+          </p>
+          <p className="text-slate-500 text-sm max-w-sm mb-8">
+            Parece que el permiso fue denegado. Por favor habilitalo en:
+          </p>
+          <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-5 text-left max-w-sm w-full mb-6 space-y-2 text-sm text-slate-300">
+            <p className="font-bold text-slate-100 mb-1">En iPhone:</p>
+            <p>Ajustes → Fleteen → Ubicación → <span className="text-amber-400 font-semibold">Al usar la app</span></p>
+            <p className="font-bold text-slate-100 mt-3 mb-1">En Android:</p>
+            <p>Ajustes → Apps → Fleteen → Permisos → Ubicación → <span className="text-amber-400 font-semibold">Permitir</span></p>
+          </div>
+          <button
+            onClick={() => { localStorage.removeItem('fleteen_location_permission'); requestLocationPermission(); }}
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition-colors"
+          >
+            Ya lo habilité, reintentar
+          </button>
         </div>
       );
     }
