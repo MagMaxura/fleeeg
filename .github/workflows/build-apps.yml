@@ -3,7 +3,7 @@ name: Build Fleteen Mobile Apps
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, flutter-version ]
 
 jobs:
   build-android:
