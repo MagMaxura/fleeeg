@@ -116,9 +116,7 @@ jobs:
         run: |
           flutter build ipa \
             -v \
-            --export-options-plist=$RUNNER_TEMP/ExportOptions.plist \
-            --codesign-style=manual \
-            --development-team="${{ secrets.APPLE_TEAM_ID }}"
+            --export-options-plist=$RUNNER_TEMP/ExportOptions.plist
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
