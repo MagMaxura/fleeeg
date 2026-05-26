@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/app_theme.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../data/models/trip_model.dart';
+import '../../../data/models/trip_model.dart';
 import '../trip_status/trip_status_view.dart';
-import '../../core/utils/location_service.dart';
+import '../../../core/utils/location_service.dart';
 
 class DriverDashboard extends ConsumerStatefulWidget {
   const DriverDashboard({super.key});
@@ -347,7 +347,7 @@ class _DriverDashboardState extends ConsumerState<DriverDashboard> {
                                                 ],
                                               ),
                                               Padding(
-                                                padding: const EdgeInsets.left(4.0, vertical: 4.0),
+                                                padding: const EdgeInsets.only(left: 4.0, top: 4.0, bottom: 4.0),
                                                 child: Container(
                                                   width: 2,
                                                   height: 16,

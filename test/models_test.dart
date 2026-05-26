@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/data/models/profile_model.dart';
-import '../lib/data/models/trip_model.dart';
-import '../lib/data/models/offer_model.dart';
+import 'package:fleteen_flutter/data/models/profile_model.dart';
+import 'package:fleteen_flutter/data/models/trip_model.dart';
+import 'package:fleteen_flutter/data/models/offer_model.dart';
 
 void main() {
   group('Fleteen Model Serialization Tests', () {

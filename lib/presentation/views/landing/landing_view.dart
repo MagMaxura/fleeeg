@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../../../core/theme/app_theme.dart';
 import '../login/login_view.dart';
 import '../onboarding/onboarding_view.dart';
 
@@ -26,7 +26,6 @@ class LandingView extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.primaryAmber.withOpacity(0.08),
-                filter: const ImageFilter.blur(sigmaX: 100, sigmaY: 100) as dynamic, // Simulated premium blur
               ),
             ),
           ),

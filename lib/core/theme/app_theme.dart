@@ -26,7 +26,7 @@ class AppTheme {
         onPrimary: Colors.black,
         onSecondary: Colors.white,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: darkCard,
         elevation: 8,
         shadowColor: Colors.black.withOpacity(0.4),

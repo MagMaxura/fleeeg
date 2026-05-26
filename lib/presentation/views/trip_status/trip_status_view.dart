@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../theme/app_theme.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../data/models/trip_model.dart';
-import '../../data/models/offer_model.dart';
+import '../../../data/models/trip_model.dart';
+import '../../../data/models/offer_model.dart';
+import '../../../data/models/profile_model.dart';
 
 class TripStatusView extends ConsumerStatefulWidget {
   final int tripId;
