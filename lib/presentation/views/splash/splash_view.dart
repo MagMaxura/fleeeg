@@ -47,7 +47,7 @@ class _SplashViewState extends ConsumerState<SplashView> with SingleTickerProvid
     final authState = ref.read(authProvider);
     if (authState.profile != null) {
       final profile = authState.profile!;
-      final needsOnboarding = profile.phone == null || profile.dniFrontUrl == null;
+      final needsOnboarding = profile.phone == null || profile.phone!.isEmpty;
       
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(

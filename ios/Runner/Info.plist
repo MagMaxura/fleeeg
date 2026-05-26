@@ -66,5 +66,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Esta aplicación requiere acceso a la cámara para tomar fotos de tu DNI durante el proceso de verificación de identidad.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Esta aplicación requiere acceso a tu biblioteca de fotos para poder seleccionar y cargar fotos de tu DNI o documentación.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Esta aplicación requiere acceso a tu ubicación GPS en primer plano para mostrar tu posición en el mapa y rastrear el viaje en tiempo real.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Esta aplicación requiere acceso continuo a tu ubicación (incluso en segundo plano) para rastrear satelitalmente el viaje del camión y proveer seguridad.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Esta aplicación requiere acceso continuo a tu ubicación en segundo plano para rastrear el progreso del flete.</string>
 </dict>
 </plist>
