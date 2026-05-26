@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x' # Or latest stable
+          flutter-version: '3.44.x' # Match local developer environment
           channel: 'stable'
           cache: true
 
@@ -59,7 +59,7 @@ jobs:
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
+          flutter-version: '3.44.x' # Match local developer environment
           channel: 'stable'
           cache: true
 
