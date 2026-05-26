@@ -116,11 +116,16 @@ jobs:
           </plist>
           EOF
 
-      - name: Build and Export iOS IPA
+      - name: Build Unsigned iOS Archive
         run: |
-          flutter build ipa \
-            -v \
-            --export-options-plist=$RUNNER_TEMP/ExportOptions.plist
+          flutter build ipa --no-codesign -v
+
+      - name: Export and Sign iOS IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath build/ios/ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
