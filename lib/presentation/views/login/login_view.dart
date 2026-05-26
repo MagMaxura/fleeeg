@@ -37,7 +37,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
 
     if (success) {
       final profile = ref.read(authProvider).profile;
-      final needsOnboarding = profile == null || profile.phone == null || profile.phone!.isEmpty;
+      final needsOnboarding = profile == null || profile.fullName == 'Usuario' || profile.fullName.trim().isEmpty;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => needsOnboarding ? const OnboardingView() : const DashboardView(),

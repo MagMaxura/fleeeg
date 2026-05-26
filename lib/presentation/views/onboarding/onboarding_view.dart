@@ -54,9 +54,115 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> with SingleTick
   }
 
   Future<void> _pickImage(bool isFront) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E293B), // Slate 800 premium dark bg
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Cargar foto del DNI',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isFront ? 'Frente de tu Documento Nacional de Identidad' : 'Dorso de tu Documento Nacional de Identidad',
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              
+              // Camera Option
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _executePick(isFront, ImageSource.camera);
+                },
+                icon: const Icon(Icons.camera_enhance_rounded, color: Colors.black),
+                label: const Text('USAR CÁMARA 📸'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryAmber,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Gallery Option
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _executePick(isFront, ImageSource.gallery);
+                },
+                icon: const Icon(Icons.photo_library_rounded, color: AppTheme.primaryAmber),
+                label: const Text('SELECCIONAR DE GALERÍA 🖼️'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primaryAmber,
+                  side: const BorderSide(color: AppTheme.primaryAmber, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Simulated Fallback Option
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _useSimulatedFallback(isFront);
+                },
+                icon: const Icon(Icons.developer_mode_rounded, color: AppTheme.textSecondary),
+                label: Text(
+                  'SIMULAR CAPTURA (TESTING)',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _executePick(bool isFront, ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 85,
       );
 
@@ -71,29 +177,32 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> with SingleTick
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isFront ? 'Frente del DNI capturado exitosamente 📸' : 'Dorso del DNI capturado exitosamente 📸'),
+            content: Text(isFront ? 'Frente del DNI cargado exitosamente ✨' : 'Dorso del DNI cargado exitosamente ✨'),
             backgroundColor: AppTheme.accentTeal,
           ),
         );
       }
     } catch (e) {
-      // Fallback/Simulated capture for testing in sandboxes/simulators without camera
-      setState(() {
-        final dummyFile = File('simulated_dni_${isFront ? "front" : "back"}.jpg');
-        if (isFront) {
-          _dniFrontFile = dummyFile;
-        } else {
-          _dniBackFile = dummyFile;
-        }
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Simulador: DNI cargado mediante fallback de alta fidelidad 📲'),
-          backgroundColor: AppTheme.primaryAmber,
-        ),
-      );
+      _useSimulatedFallback(isFront);
     }
+  }
+
+  void _useSimulatedFallback(bool isFront) {
+    setState(() {
+      final dummyFile = File('simulated_dni_${isFront ? "front" : "back"}.jpg');
+      if (isFront) {
+        _dniFrontFile = dummyFile;
+      } else {
+        _dniBackFile = dummyFile;
+      }
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Simulador: DNI cargado mediante fallback de alta fidelidad 📲'),
+        backgroundColor: AppTheme.primaryAmber,
+      ),
+    );
   }
 
   Future<void> _processOcr() async {
