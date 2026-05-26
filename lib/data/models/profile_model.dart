@@ -40,7 +40,7 @@ class ProfileModel {
     }
 
     return ProfileModel(
-      id: json['id'] as String,
+      id: (json['id'] ?? '') as String,
       fullName: (json['full_name'] ?? json['fullName'] ?? 'Usuario') as String,
       phone: json['phone'] as String?,
       role: roleVal,

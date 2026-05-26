@@ -19,14 +19,14 @@ class OfferModel {
 
   factory OfferModel.fromJson(Map<String, dynamic> json) {
     return OfferModel(
-      id: json['id'] as int,
-      tripId: json['trip_id'] as int,
-      driverId: json['driver_id'] as String,
+      id: (json['id'] ?? 0) as int,
+      tripId: (json['trip_id'] ?? json['tripId'] ?? 0) as int,
+      driverId: (json['driver_id'] ?? json['driverId'] ?? '') as String,
       price: ((json['price'] ?? 0.0) as num).toDouble(),
       notes: json['notes'] as String?,
       status: (json['status'] ?? 'pending') as String,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
     );
   }

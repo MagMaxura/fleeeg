@@ -33,24 +33,27 @@ class TripModel {
 
   factory TripModel.fromJson(Map<String, dynamic> json) {
     var photosFromJson = json['cargo_photos'] ?? json['cargoPhotos'] ?? [];
-    List<String> photosList = List<String>.from(photosFromJson);
+    List<String> photosList = [];
+    if (photosFromJson is List) {
+      photosList = photosFromJson.map((e) => e?.toString() ?? '').toList();
+    }
 
     return TripModel(
-      id: json['id'] as int,
-      customerId: json['customer_id'] as String,
+      id: (json['id'] ?? 0) as int,
+      customerId: (json['customer_id'] ?? json['customerId'] ?? '') as String,
       driverId: json['driver_id'] as String?,
-      originAddress: json['origin_address'] as String,
-      destinationAddress: json['destination_address'] as String,
+      originAddress: (json['origin_address'] ?? json['originAddress'] ?? '') as String,
+      destinationAddress: (json['destination_address'] ?? json['destinationAddress'] ?? '') as String,
       originLat: ((json['origin_lat'] ?? 0.0) as num).toDouble(),
       originLng: ((json['origin_lng'] ?? 0.0) as num).toDouble(),
       destinationLat: ((json['destination_lat'] ?? 0.0) as num).toDouble(),
       destinationLng: ((json['destination_lng'] ?? 0.0) as num).toDouble(),
-      cargoDescription: (json['cargo_description'] ?? '') as String,
+      cargoDescription: (json['cargo_description'] ?? json['cargoDescription'] ?? '') as String,
       price: ((json['price'] ?? 0.0) as num).toDouble(),
       status: (json['status'] ?? 'requested') as String,
       cargoPhotos: photosList,
       createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'] as String) 
+          ? DateTime.tryParse(json['created_at'].toString()) 
           : null,
     );
   }
