@@ -98,16 +98,20 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>ad-hoc</string>
             <key>teamID</key>
             <string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>com.fleteen.app</key>
               <string>${{ secrets.PROVISIONING_PROFILE_NAME }}</string>
             </dict>
-            <key>signingStyle</key>
-            <string>manual</string>
+            <key>compileBitcode</key>
+            <false/>
           </dict>
           </plist>
           EOF
