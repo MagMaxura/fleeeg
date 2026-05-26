@@ -5,9 +5,6 @@ platform :ios, '14.0'
 keep_message_log = false
 
 target 'Runner' do
-  use_frameworks!
-  use_modular_headers!
-
   flutter_install_all_ios_pods File.dirname(File.expand_path(__FILE__))
 end
 
