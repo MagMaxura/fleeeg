@@ -1,9 +1,6 @@
 # Set platform to iOS 14.0 matching our xcode project settings and plugin requirements
 platform :ios, '14.0'
 
-# CocoaPods analytics sends network stats. Disable it to speed up CI.
-keep_message_log = false
-
 target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.expand_path(__FILE__))
 end
