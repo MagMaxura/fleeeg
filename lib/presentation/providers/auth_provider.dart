@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/profile_model.dart';
 import '../../data/repositories/supabase_repository.dart';
+import '../../core/utils/push_notification_service.dart';
 
 class AuthState {
   final ProfileModel? profile;
@@ -41,6 +42,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final profile = await _repository.getProfile(user.id);
         state = state.copyWith(profile: profile, isLoading: false);
+        PushNotificationService().registerFcmToken();
       } catch (e) {
         state = state.copyWith(errorMessage: e.toString(), isLoading: false);
       }
@@ -54,6 +56,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (response.user != null) {
         final profile = await _repository.getProfile(response.user!.id);
         state = AuthState(profile: profile, isLoading: false);
+        PushNotificationService().registerFcmToken();
         return true;
       }
       state = state.copyWith(isLoading: false, errorMessage: 'Credenciales inválidas');
@@ -67,6 +70,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true);
     try {
+      await PushNotificationService().unregisterFcmToken();
       await _repository.signOut();
       state = AuthState();
     } catch (e) {
