@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../../data/models/trip_model.dart';
@@ -164,7 +165,6 @@ class _DriverDashboardState extends ConsumerState<DriverDashboard> with SingleTi
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).profile;
-    final repo = ref.read(supabaseRepositoryProvider);
 
     return Scaffold(
       appBar: AppBar(

@@ -50,8 +50,6 @@ class SupabaseRepository {
     required String path,
     required String bucket,
   }) async {
-    final fileBytes = await file.readAsBytes();
-    
     final response = await _client.functions.invoke(
       'upload-proxy',
       method: HttpMethod.post,
@@ -245,7 +243,7 @@ class SupabaseRepository {
     // Dynamically calculate and update driver's rating in profiles table
     try {
       final reviews = await _client.from('reviews').select('rating').eq('driver_id', driverId);
-      if (reviews != null && reviews.isNotEmpty) {
+      if (reviews.isNotEmpty) {
         double totalRating = 0;
         for (final r in reviews) {
           totalRating += (r['rating'] as num).toDouble();

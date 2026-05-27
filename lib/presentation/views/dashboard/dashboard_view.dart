@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../../data/models/profile_model.dart';
 import 'customer_dashboard.dart';

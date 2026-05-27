@@ -101,7 +101,6 @@ class _RankingsViewState extends ConsumerState<RankingsView> {
         case SortKey.kilometers:
           return (b['totalKms'] as double).compareTo(a['totalKms'] as double);
         case SortKey.trips:
-        default:
           return (b['totalTrips'] as int).compareTo(a['totalTrips'] as int);
       }
     });
