@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +7,14 @@ import '../../providers/auth_provider.dart';
 import '../../../data/models/trip_model.dart';
 import '../../../data/models/offer_model.dart';
 import '../../../data/models/profile_model.dart';
+
+// Modular Sub-Widgets
+import 'widgets/google_map_section.dart';
+import 'widgets/trip_details_card.dart';
+import 'widgets/status_tracker_section.dart';
+import 'widgets/bidding_section.dart';
+import 'widgets/live_chat_section.dart';
+import 'widgets/review_section.dart';
 
 class TripStatusView extends ConsumerStatefulWidget {
   final int tripId;
@@ -19,11 +28,39 @@ class TripStatusView extends ConsumerStatefulWidget {
 class _TripStatusViewState extends ConsumerState<TripStatusView> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _chatMessages = []; // Simulating local real-time chat messages
+  
+  // Bidding form controllers
+  final _bidPriceController = TextEditingController();
+  final _bidNotesController = TextEditingController();
+  bool _isSubmittingBid = false;
+
+  // Review form controllers
+  double _userRating = 5.0;
+  final _reviewCommentController = TextEditingController();
+  bool _isSubmittingReview = false;
+  bool _hasReviewed = false;
+
   bool _isPaymentProcessing = false;
+  bool _isActionProcessing = false;
   late Stream<List<TripModel>> _tripsStream;
 
-  Future<void> _initiatePayment(int tripId) async {
+  @override
+  void initState() {
+    super.initState();
+    _tripsStream = ref.read(supabaseRepositoryProvider).getAvailableTripsStream();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    _bidPriceController.dispose();
+    _bidNotesController.dispose();
+    _reviewCommentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initiatePayment(int tripId, double price) async {
     setState(() {
       _isPaymentProcessing = true;
     });
@@ -36,23 +73,27 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Abriendo pasarela de pago Mercado Pago... 💳'),
-            backgroundColor: AppTheme.accentTeal,
-          ),
-        );
-
-        // Direct DB update simulation in dev to make UI immediately paid!
-        await Future.delayed(const Duration(seconds: 4));
         if (mounted) {
-          await repo.updateTripStatus(tripId, 'paid');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Pago confirmado exitosamente! 🔒 El flete se encuentra listo para iniciar.'),
+              content: Text('Abriendo Mercado Pago... 💳'),
               backgroundColor: AppTheme.accentTeal,
             ),
           );
+        }
+
+        // Simulation update
+        await Future.delayed(const Duration(seconds: 4));
+        if (mounted) {
+          await repo.updateTripStatus(tripId, 'paid');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('¡Pago confirmado exitosamente! 🔒 El flete se encuentra pagado.'),
+                backgroundColor: AppTheme.accentTeal,
+              ),
+            );
+          }
         }
       } else {
         throw Exception('Could not launch payment URL');
@@ -75,49 +116,147 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _tripsStream = ref.read(supabaseRepositoryProvider).getAvailableTripsStream();
-    // Simulate first welcome chat message
-    _chatMessages.add({
-      'sender_id': 'system',
-      'content': '¡Chat del viaje iniciado! Podés negociar la cotización aquí de forma segura.',
-      'time': DateTime.now(),
-    });
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-
-    final user = ref.read(authProvider).profile;
-    setState(() {
-      _chatMessages.add({
-        'sender_id': user?.id ?? 'unknown',
-        'sender_name': user?.fullName ?? 'Usuario',
-        'content': _messageController.text.trim(),
-        'time': DateTime.now(),
-      });
-    });
-
-    _messageController.clear();
-    // Auto-scroll chat to bottom
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
+  Future<void> _updateTripStatus(int tripId, String newStatus) async {
+    setState(() => _isActionProcessing = true);
+    try {
+      final repo = ref.read(supabaseRepositoryProvider);
+      await repo.updateTripStatus(tripId, newStatus);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Viaje actualizado a: ${newStatus.toUpperCase()}'),
+            backgroundColor: AppTheme.accentTeal,
+          ),
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al actualizar flete: $e'),
+            backgroundColor: AppTheme.primaryOrange,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionProcessing = false);
+    }
+  }
+
+  Future<void> _submitBid(int tripId) async {
+    final price = double.tryParse(_bidPriceController.text.trim()) ?? 0.0;
+    if (price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa un precio válido para cotizar.')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmittingBid = true);
+    try {
+      final repo = ref.read(supabaseRepositoryProvider);
+      await repo.placeOffer(tripId, price, _bidNotesController.text.trim());
+      _bidPriceController.clear();
+      _bidNotesController.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Propuesta de flete enviada con éxito! Esperando respuesta.'),
+            backgroundColor: AppTheme.accentTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al enviar cotización: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmittingBid = false);
+    }
+  }
+
+  Future<void> _acceptDriverOffer(int tripId, OfferModel offer) async {
+    setState(() => _isActionProcessing = true);
+    try {
+      final repo = ref.read(supabaseRepositoryProvider);
+      await repo.acceptOffer(tripId, offer.id, offer.driverId, offer.price);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Oferta de fletero aceptada con éxito! El fletero está asignado.'),
+            backgroundColor: AppTheme.accentTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al aceptar oferta: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionProcessing = false);
+    }
+  }
+
+  Future<void> _submitReview(int tripId, String driverId) async {
+    if (_reviewCommentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor escribe un comentario para tu reseña.')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmittingReview = true);
+    try {
+      final repo = ref.read(supabaseRepositoryProvider);
+      await repo.submitReview(tripId, driverId, _userRating, _reviewCommentController.text.trim());
+      setState(() {
+        _hasReviewed = true;
+        _reviewCommentController.clear();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Calificación enviada! Gracias por tu feedback.'),
+            backgroundColor: AppTheme.accentTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al enviar calificación: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmittingReview = false);
+    }
+  }
+
+  Future<void> _sendMessage(int tripId, String content) async {
+    if (content.trim().isEmpty) return;
+
+    try {
+      final repo = ref.read(supabaseRepositoryProvider);
+      await repo.sendChatMessage(tripId, content.trim());
+      _messageController.clear();
+      
+      // Auto-scroll chat to bottom
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    } catch (e) {
+      // Swallowed
+    }
   }
 
   @override
@@ -152,451 +291,209 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
             cargoPhotos: [],
           ));
 
-          return Column(
-            children: [
-              // --- SECTION 1: Gorgeous Simulated Interactive Map ---
-              Container(
-                height: 220,
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1E293B), Color(0xFF0F172A)], // Dark slate map colors
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Grid pattern styling
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: 0.05,
-                        child: GridPaper(
-                          color: Colors.white,
-                          divisions: 1,
-                          subdivisions: 1,
-                        ),
-                      ),
-                    ),
-                    
-                    // Route Polyline simulation
-                    Center(
-                      child: CustomPaint(
-                        size: const Size(200, 100),
-                        painter: _RoutePainter(),
-                      ),
-                    ),
+          return FutureBuilder<List<ProfileModel>>(
+            future: repo.getDrivers(),
+            builder: (context, driversSnapshot) {
+              final drivers = driversSnapshot.data ?? [];
+              final assignedDriver = trip.driverId != null
+                  ? drivers.firstWhere((d) => d.id == trip.driverId, orElse: () => ProfileModel(id: trip.driverId!, fullName: 'Fletero Asignado', role: UserRole.driver))
+                  : null;
 
-                    // Markers
-                    Positioned(
-                      left: 60,
-                      top: 140,
+              return Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Icon(Icons.location_on_rounded, color: AppTheme.primaryAmber, size: 30),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: const Text('ORIGEN', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                          // --- SECTION 1: Google Map Interactive ---
+                          GoogleMapSection(
+                            trip: trip,
+                            statusColor: _getStatusColor(trip.status),
                           ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 60,
-                      top: 40,
-                      child: Column(
-                        children: [
-                          const Icon(Icons.flag_rounded, color: AppTheme.primaryOrange, size: 30),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: const Text('DESTINO', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ),
 
-                    // Top Floating overlay status pill
-                    Positioned(
-                      top: 16,
-                      left: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.darkCard.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppTheme.primaryAmber,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'ESTADO: ${trip.status.toUpperCase()}',
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                          // --- SECTION 2: General Trip Details ---
+                          TripDetailsCard(trip: trip),
+
+                          // --- SECTION 3: Step-by-Step Progress & Operational Buttons ---
+                          StatusTrackerSection(
+                            currentStatus: trip.status,
+                            driverName: assignedDriver?.fullName,
+                            workflowButton: _buildWorkflowButton(trip, user?.role),
+                          ),
+
+                          // --- SECTION 4: Customer Review/Rating Panel ---
+                          if (trip.status == 'paid' && user?.role == UserRole.customer && !_hasReviewed) ...[
+                            ReviewSection(
+                              userRating: _userRating,
+                              reviewCommentController: _reviewCommentController,
+                              isSubmittingReview: _isSubmittingReview,
+                              onRatingChanged: (rating) => setState(() => _userRating = rating),
+                              onSubmitReview: () => _submitReview(trip.id, trip.driverId!),
                             ),
                           ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-              // --- SECTION 2: Trip & Cargo Details ---
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Detalles de Carga',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            Text(
-                              '\$${trip.price.toStringAsFixed(0)}',
-                              style: const TextStyle(color: AppTheme.accentTeal, fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          trip.cargoDescription,
-                          style: TextStyle(color: AppTheme.textPrimary.withOpacity(0.9), fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+                          // --- SECTION 5: Real-time Bidding Panel (Requested Status) ---
+                          if (trip.status == 'requested') ...[
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: StreamBuilder<List<OfferModel>>(
+                                stream: repo.getOffersStream(trip.id),
+                                builder: (context, offersSnapshot) {
+                                  final offers = offersSnapshot.data ?? [];
 
-              // --- PAYMENT PANEL (ONLY FOR CUSTOMER IF ACCEPTED / PAID) ---
-              if (user?.role == UserRole.customer) ...[
-                if (trip.status == 'accepted')
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.primaryAmber.withOpacity(0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryAmber.withOpacity(0.05),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.payment_rounded, color: AppTheme.primaryAmber, size: 24),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'VIAJE COTIZADO Y LISTO PARA PAGO',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w900,
-                                        color: AppTheme.primaryAmber,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Aboná el importe para confirmar el flete.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textPrimary.withOpacity(0.8),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF009EE3), // Mercado Pago Deep Blue
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              onPressed: _isPaymentProcessing ? null : () => _initiatePayment(trip.id),
-                              child: _isPaymentProcessing
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                    )
-                                  : const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.credit_card_rounded, size: 20),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          'PAGAR CON MERCADO PAGO',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (trip.status == 'paid')
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accentTeal.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle_rounded, color: AppTheme.accentTeal, size: 24),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'PAGO CONFIRMADO 🔒',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.accentTeal,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'La transacción es segura. El fletero está en camino.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.textPrimary.withOpacity(0.8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-              ],
-
-              // --- SECTION 3: Live Negotiation Chat ---
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Conversación y Cotizaciones',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.darkCard,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
-                  ),
-                  child: Column(
-                    children: [
-                      // Chat messages list
-                      Expanded(
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _chatMessages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _chatMessages[index];
-                            final isMe = msg['sender_id'] == (user?.id ?? '');
-                            final isSystem = msg['sender_id'] == 'system';
-
-                            if (isSystem) {
-                              return Center(
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.04),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    msg['content'] as String,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return Align(
-                              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isMe ? AppTheme.primaryAmber : Colors.white.withOpacity(0.06),
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(16),
-                                    topRight: const Radius.circular(16),
-                                    bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                    bottomRight: Radius.circular(isMe ? 0 : 16),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (!isMe)
-                                      Text(
-                                        (msg['sender_name'] ?? 'Usuario') as String,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 10,
-                                          color: AppTheme.primaryAmber,
-                                        ),
-                                      ),
-                                    if (!isMe) const SizedBox(height: 4),
-                                    Text(
-                                      msg['content'] as String,
-                                      style: TextStyle(
-                                        color: isMe ? Colors.black : Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: isMe ? FontWeight.w600 : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Input panel
-                      Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _messageController,
-                                decoration: InputDecoration(
-                                  hintText: 'Escribir mensaje...',
-                                  fillColor: Colors.black.withOpacity(0.2),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                    borderSide: const BorderSide(color: AppTheme.primaryAmber, width: 1.5),
-                                  ),
-                                ),
-                                onSubmitted: (_) => _sendMessage(),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            CircleAvatar(
-                              backgroundColor: AppTheme.primaryAmber,
-                              radius: 22,
-                              child: IconButton(
-                                icon: const Icon(Icons.send_rounded, color: Colors.black, size: 18),
-                                onPressed: _sendMessage,
+                                  return BiddingSection(
+                                    trip: trip,
+                                    userRole: user?.role.name,
+                                    userId: user?.id,
+                                    offers: offers,
+                                    drivers: drivers,
+                                    bidPriceController: _bidPriceController,
+                                    bidNotesController: _bidNotesController,
+                                    isSubmittingBid: _isSubmittingBid,
+                                    onSubmitBid: () => _submitBid(trip.id),
+                                    isActionProcessing: _isActionProcessing,
+                                    onAcceptOffer: (offer) => _acceptDriverOffer(trip.id, offer),
+                                  );
+                                },
                               ),
                             ),
                           ],
-                        ),
+
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Divider(color: Colors.white10),
+                          ),
+                          
+                          // --- SECTION 6: Live Negotiation Chat Header ---
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                            child: Text(
+                              'Mensajes en Vivo',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+
+                  // --- SECTION 7: Chat Messages Sourced from real-time Stream ---
+                  LiveChatSection(
+                    chatMessagesStream: repo.getChatMessagesStream(trip.id),
+                    currentUserId: user?.id ?? '',
+                    messageController: _messageController,
+                    scrollController: _scrollController,
+                    onSendMessage: (val) => _sendMessage(trip.id, val),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
-}
 
-// Custom Painter to draw a stylized transportation route on the mock map
-class _RoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppTheme.primaryAmber
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path()
-      ..moveTo(30, size.height - 20)
-      ..cubicTo(
-        size.width / 4,
-        size.height * 0.9,
-        size.width / 2,
-        size.height * 0.1,
-        size.width - 30,
-        30,
-      );
-
-    canvas.drawPath(path, paint);
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'requested': return AppTheme.primaryAmber;
+      case 'accepted': return Colors.lightBlue;
+      case 'loading': return AppTheme.primaryOrange;
+      case 'in_transit': return Colors.deepPurpleAccent;
+      case 'completed': return Colors.pinkAccent;
+      case 'paid': return AppTheme.accentTeal;
+      default: return Colors.grey;
+    }
   }
 
+  Widget _buildWorkflowButton(TripModel trip, UserRole? role) {
+    if (_isActionProcessing) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryAmber));
+    }
+
+    // Customer workflow actions
+    if (role == UserRole.customer) {
+      if (trip.status == 'accepted') {
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
+          onPressed: () => _updateTripStatus(trip.id, 'loading'),
+          child: const Text('¡FLETERO EN LA PUERTA! COMENZAR CARGA'),
+        );
+      }
+      if (trip.status == 'loading') {
+        return ElevatedButton(
+          onPressed: () => _updateTripStatus(trip.id, 'in_transit'),
+          child: const Text('CARGA FINALIZADA: INICIAR GPS'),
+        );
+      }
+      if (trip.status == 'completed') {
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF009EE3), // MP color
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _isPaymentProcessing ? null : () => _initiatePayment(trip.id, trip.finalPrice ?? trip.price),
+          child: _isPaymentProcessing
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+              : const Text('PAGAR CON MERCADO PAGO'),
+        );
+      }
+    }
+
+    // Driver workflow actions
+    if (role == UserRole.driver) {
+      if (trip.status == 'accepted') {
+        return const ContainerMessage(
+          message: 'Dirígete al origen. El cliente debe confirmar en su app para iniciar la carga.',
+          color: Colors.amber,
+        );
+      }
+      if (trip.status == 'loading') {
+        return const ContainerMessage(
+          message: 'Cargando mercancía. Pide al cliente que presione "Carga Finalizada" para arrancar el GPS.',
+          color: Colors.lightBlue,
+        );
+      }
+      if (trip.status == 'in_transit') {
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryOrange),
+          onPressed: () => _updateTripStatus(trip.id, 'completed'),
+          child: const Text('LLEGUÉ AL DESTINO (FIN DEL VIAJE)'),
+        );
+      }
+      if (trip.status == 'completed') {
+        return const ContainerMessage(
+          message: 'Viaje entregado exitosamente. Esperando que el cliente realice el pago.',
+          color: Colors.pink,
+        );
+      }
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class ContainerMessage extends StatelessWidget {
+  final String message;
+  final Color color;
+
+  const ContainerMessage({super.key, required this.message, required this.color});
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: color.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
 }
