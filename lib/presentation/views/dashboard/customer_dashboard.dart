@@ -36,9 +36,9 @@ class _CustomerDashboardState extends ConsumerState<CustomerDashboard> {
       final repo = ref.read(supabaseRepositoryProvider);
       
       final tripData = {
-        'origin_address': _originController.text.trim(),
-        'destination_address': _destinationController.text.trim(),
-        'cargo_description': _cargoController.text.trim(),
+        'origin': _originController.text.trim(),
+        'destination': _destinationController.text.trim(),
+        'cargo_details': _cargoController.text.trim(),
         'price': double.parse(_priceController.text.trim()),
         'origin_lat': -32.95, // Default coords for Rosario/Arg
         'origin_lng': -60.66,

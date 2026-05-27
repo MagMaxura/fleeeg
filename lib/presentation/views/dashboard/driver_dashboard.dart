@@ -182,7 +182,9 @@ class _DriverDashboardState extends ConsumerState<DriverDashboard> {
                     }
 
                     // Reactively update the LocationService GPS tracking state
-                    _updateTrackingState(assignedActiveTrip);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _updateTrackingState(assignedActiveTrip);
+                    });
 
                     final availableTrips = trips.where((t) => t.status == 'requested').toList();
 
