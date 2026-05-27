@@ -18,10 +18,12 @@ class _DriverDashboardState extends ConsumerState<DriverDashboard> {
   final LocationService _locationService = LocationService();
   int? _trackedTripId;
   bool _isGpsPulsing = true;
+  late Stream<List<TripModel>> _tripsStream;
 
   @override
   void initState() {
     super.initState();
+    _tripsStream = ref.read(supabaseRepositoryProvider).getAvailableTripsStream();
     _startPulseAnimation();
   }
 
@@ -151,7 +153,7 @@ class _DriverDashboardState extends ConsumerState<DriverDashboard> {
               // Live Stream of trips from Supabase (to check active tracking status & available list)
               Expanded(
                 child: StreamBuilder<List<TripModel>>(
-                  stream: repo.getAvailableTripsStream(),
+                  stream: _tripsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(

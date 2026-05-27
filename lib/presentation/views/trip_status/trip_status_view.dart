@@ -21,6 +21,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
   final _scrollController = ScrollController();
   final List<Map<String, dynamic>> _chatMessages = []; // Simulating local real-time chat messages
   bool _isPaymentProcessing = false;
+  late Stream<List<TripModel>> _tripsStream;
 
   Future<void> _initiatePayment(int tripId) async {
     setState(() {
@@ -77,6 +78,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
   @override
   void initState() {
     super.initState();
+    _tripsStream = ref.read(supabaseRepositoryProvider).getAvailableTripsStream();
     // Simulate first welcome chat message
     _chatMessages.add({
       'sender_id': 'system',
@@ -128,7 +130,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
         title: const Text('Detalle del Flete'),
       ),
       body: StreamBuilder<List<TripModel>>(
-        stream: repo.getAvailableTripsStream(),
+        stream: _tripsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: AppTheme.primaryAmber));
