@@ -4,6 +4,8 @@ ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 # Set platform to iOS 14.0 matching our xcode project settings and plugin requirements
 platform :ios, '14.0'
 
+use_modular_headers!
+
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
