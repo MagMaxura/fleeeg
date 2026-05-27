@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -13,6 +14,9 @@ class TripForm extends StatelessWidget {
   final bool needsUnloadingHelp;
   final int numberOfHelpers;
   final bool isSubmitting;
+  final List<File> cargoPhotos;
+  final VoidCallback onPickPhoto;
+  final Function(int) onRemovePhoto;
   final ValueChanged<bool> onNeedsLoadingHelpChanged;
   final ValueChanged<bool> onNeedsUnloadingHelpChanged;
   final ValueChanged<int?> onNumberOfHelpersChanged;
@@ -31,6 +35,9 @@ class TripForm extends StatelessWidget {
     required this.needsUnloadingHelp,
     required this.numberOfHelpers,
     required this.isSubmitting,
+    required this.cargoPhotos,
+    required this.onPickPhoto,
+    required this.onRemovePhoto,
     required this.onNeedsLoadingHelpChanged,
     required this.onNeedsUnloadingHelpChanged,
     required this.onNumberOfHelpersChanged,
@@ -156,6 +163,80 @@ class TripForm extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Cargo Photos Section
+          const Text(
+            'Fotos de la Carga (Hasta 3)',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.primaryAmber),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 90,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: cargoPhotos.length + (cargoPhotos.length < 3 ? 1 : 0),
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                if (index == cargoPhotos.length) {
+                  return GestureDetector(
+                    onTap: onPickPhoto,
+                    child: Container(
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo_outlined, color: AppTheme.textSecondary.withOpacity(0.6), size: 24),
+                          const SizedBox(height: 4),
+                          const Text('Añadir', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                final file = cargoPhotos[index];
+                return Stack(
+                  children: [
+                    Container(
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: AppTheme.darkCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.primaryAmber.withOpacity(0.2)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: file.path.startsWith('simulated')
+                            ? const Center(child: Icon(Icons.inventory_2_outlined, color: AppTheme.primaryAmber, size: 36))
+                            : Image.file(file, fit: BoxFit.cover),
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: GestureDetector(
+                        onTap: () => onRemovePhoto(index),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white, size: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Price Input
           TextFormField(

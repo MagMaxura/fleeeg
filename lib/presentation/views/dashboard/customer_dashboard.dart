@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../../data/models/trip_model.dart';
@@ -31,7 +33,135 @@ class _CustomerDashboardState extends ConsumerState<CustomerDashboard> with Sing
   int _numberOfHelpers = 0;
   bool _isSubmitting = false;
 
+  final List<File> _cargoPhotos = [];
+  final ImagePicker _picker = ImagePicker();
+
   late Stream<List<TripModel>> _tripsStream;
+
+  Future<void> _pickCargoPhoto() async {
+    if (_cargoPhotos.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Puedes subir un máximo de 3 fotos de la carga.'),
+          backgroundColor: AppTheme.primaryOrange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E293B),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'Agregar Foto de la Carga',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _executeCargoPick(ImageSource.camera);
+                },
+                icon: const Icon(Icons.camera_enhance_rounded, color: Colors.black),
+                label: const Text('TOMAR FOTO 📸'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryAmber,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _executeCargoPick(ImageSource.gallery);
+                },
+                icon: const Icon(Icons.photo_library_rounded, color: AppTheme.primaryAmber),
+                label: const Text('ELEGIR DE GALERÍA 🖼️'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.primaryAmber,
+                  side: const BorderSide(color: AppTheme.primaryAmber, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _addSimulatedCargoPhoto();
+                },
+                icon: const Icon(Icons.developer_mode_rounded, color: AppTheme.textSecondary),
+                label: Text(
+                  'SIMULAR FOTO (TESTING)',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _executeCargoPick(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(source: source, imageQuality: 80);
+      if (image != null) {
+        setState(() {
+          _cargoPhotos.add(File(image.path));
+        });
+      }
+    } catch (e) {
+      _addSimulatedCargoPhoto();
+    }
+  }
+
+  void _addSimulatedCargoPhoto() {
+    setState(() {
+      _cargoPhotos.add(File('simulated_cargo_${_cargoPhotos.length + 1}.jpg'));
+    });
+  }
+
+  void _removeCargoPhoto(int index) {
+    setState(() {
+      _cargoPhotos.removeAt(index);
+    });
+  }
 
   @override
   void initState() {
@@ -75,7 +205,7 @@ class _CustomerDashboardState extends ConsumerState<CustomerDashboard> with Sing
         'number_of_helpers': _numberOfHelpers,
       };
 
-      await repo.createTrip(tripData, []); // Empty files list for simulation
+      await repo.createTrip(tripData, _cargoPhotos);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,6 +221,7 @@ class _CustomerDashboardState extends ConsumerState<CustomerDashboard> with Sing
       _cargoController.clear();
       _priceController.clear();
       setState(() {
+        _cargoPhotos.clear();
         _needsLoadingHelp = false;
         _needsUnloadingHelp = false;
         _numberOfHelpers = 0;
@@ -169,6 +300,9 @@ class _CustomerDashboardState extends ConsumerState<CustomerDashboard> with Sing
                     needsUnloadingHelp: _needsUnloadingHelp,
                     numberOfHelpers: _numberOfHelpers,
                     isSubmitting: _isSubmitting,
+                    cargoPhotos: _cargoPhotos,
+                    onPickPhoto: _pickCargoPhoto,
+                    onRemovePhoto: _removeCargoPhoto,
                     onNeedsLoadingHelpChanged: (val) => setState(() => _needsLoadingHelp = val),
                     onNeedsUnloadingHelpChanged: (val) => setState(() => _needsUnloadingHelp = val),
                     onNumberOfHelpersChanged: (val) => setState(() => _numberOfHelpers = val ?? 0),
