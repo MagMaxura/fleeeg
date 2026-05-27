@@ -6,11 +6,13 @@ import '../../../../data/models/trip_model.dart';
 class GoogleMapSection extends StatelessWidget {
   final TripModel trip;
   final Color statusColor;
+  final LatLng? driverLocation;
 
   const GoogleMapSection({
     super.key,
     required this.trip,
     required this.statusColor,
+    this.driverLocation,
   });
 
   @override
@@ -37,6 +39,16 @@ class GoogleMapSection extends StatelessWidget {
                 icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
                 infoWindow: InfoWindow(title: 'Destino', snippet: trip.destinationAddress),
               ),
+              if (driverLocation != null)
+                Marker(
+                  markerId: const MarkerId('driver'),
+                  position: driverLocation!,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  infoWindow: const InfoWindow(
+                    title: 'Fletero en Tránsito 🚚',
+                    snippet: 'Ubicación actual en vivo',
+                  ),
+                ),
             },
             polylines: {
               Polyline(

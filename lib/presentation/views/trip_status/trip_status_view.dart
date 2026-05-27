@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../../data/models/trip_model.dart';
@@ -28,6 +29,35 @@ class TripStatusView extends ConsumerStatefulWidget {
 class _TripStatusViewState extends ConsumerState<TripStatusView> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  
+  // Live GPS Tracking state & subscriptions
+  StreamSubscription<List<Map<String, dynamic>>>? _driverLocationSubscription;
+  LatLng? _driverPosition;
+  int? _subscribedTripId;
+
+  void _subscribeToDriverLocation(int tripId) {
+    if (_subscribedTripId == tripId) return;
+    _subscribedTripId = tripId;
+    _driverLocationSubscription?.cancel();
+    
+    final repo = ref.read(supabaseRepositoryProvider);
+    _driverLocationSubscription = repo.getDriverLocationStream(tripId).listen((data) {
+      if (data.isNotEmpty && mounted) {
+        final loc = data.first;
+        final lat = (loc['latitude'] as num).toDouble();
+        final lng = (loc['longitude'] as num).toDouble();
+        setState(() {
+          _driverPosition = LatLng(lat, lng);
+        });
+      }
+    });
+  }
+
+  void _unsubscribeFromDriverLocation() {
+    _driverLocationSubscription?.cancel();
+    _driverLocationSubscription = null;
+    _subscribedTripId = null;
+  }
   
   // Bidding form controllers
   final _bidPriceController = TextEditingController();
@@ -57,6 +87,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
     _bidPriceController.dispose();
     _bidNotesController.dispose();
     _reviewCommentController.dispose();
+    _unsubscribeFromDriverLocation();
     super.dispose();
   }
 
@@ -299,6 +330,17 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
                   ? drivers.firstWhere((d) => d.id == trip.driverId, orElse: () => ProfileModel(id: trip.driverId!, fullName: 'Fletero Asignado', role: UserRole.driver))
                   : null;
 
+              // Manage location subscription based on trip status
+              if (trip.driverId != null && ['accepted', 'loading', 'in_transit', 'completed'].contains(trip.status)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _subscribeToDriverLocation(trip.id);
+                });
+              } else {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _unsubscribeFromDriverLocation();
+                });
+              }
+
               return Column(
                 children: [
                   Expanded(
@@ -310,6 +352,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
                           GoogleMapSection(
                             trip: trip,
                             statusColor: _getStatusColor(trip.status),
+                            driverLocation: _driverPosition,
                           ),
 
                           // --- SECTION 2: General Trip Details ---

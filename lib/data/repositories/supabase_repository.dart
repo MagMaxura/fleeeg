@@ -401,4 +401,14 @@ class SupabaseRepository {
       return 'https://www.mercadopago.com.ar/sandbox/payments/checkout/preference?pref_id=12345678-abc-fleteen';
     }
   }
+
+  // --- Live GPS Tracking Stream ---
+
+  Stream<List<Map<String, dynamic>>> getDriverLocationStream(int tripId) {
+    return _client
+        .from('driver_locations')
+        .stream(primaryKey: ['driver_id'])
+        .eq('active_trip_id', tripId)
+        .limit(1);
+  }
 }
