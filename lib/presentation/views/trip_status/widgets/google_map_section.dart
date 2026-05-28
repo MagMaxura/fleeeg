@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/trip_model.dart';
@@ -17,51 +19,185 @@ class GoogleMapSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // google_maps_flutter is only implemented for Android, iOS, and Web.
+    // If run on Windows native desktop, it will throw UnimplementedError and crash.
+    final bool isMapSupported = kIsWeb || Platform.isAndroid || Platform.isIOS;
+
     return SizedBox(
       height: 240,
       child: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: LatLng(trip.originLat, trip.originLng),
-              zoom: 12.0,
-            ),
-            markers: {
-              Marker(
-                markerId: const MarkerId('origin'),
-                position: LatLng(trip.originLat, trip.originLng),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-                infoWindow: InfoWindow(title: 'Origen', snippet: trip.originAddress),
-              ),
-              Marker(
-                markerId: const MarkerId('destination'),
-                position: LatLng(trip.destinationLat, trip.destinationLng),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-                infoWindow: InfoWindow(title: 'Destino', snippet: trip.destinationAddress),
-              ),
-              if (driverLocation != null)
-                Marker(
-                  markerId: const MarkerId('driver'),
-                  position: driverLocation!,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                  infoWindow: const InfoWindow(
-                    title: 'Fletero en Tránsito 🚚',
-                    snippet: 'Ubicación actual en vivo',
+          if (!isMapSupported)
+            Container(
+              color: const Color(0xFF0F172A), // Slate 900
+              child: Stack(
+                children: [
+                  // Cybernetic grid background
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.1,
+                      child: GridPaper(
+                        color: AppTheme.primaryAmber,
+                        divisions: 1,
+                        subdivisions: 1,
+                        interval: 40,
+                      ),
+                    ),
                   ),
-                ),
-            },
-            polylines: {
-              Polyline(
-                polylineId: const PolylineId('route'),
-                points: [
-                  LatLng(trip.originLat, trip.originLng),
-                  LatLng(trip.destinationLat, trip.destinationLng),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryAmber.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppTheme.primaryAmber.withOpacity(0.3), width: 1.5),
+                            ),
+                            child: const Icon(Icons.map_outlined, color: AppTheme.primaryAmber, size: 40),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'MAPA SATELITAL DE VIAJE 🛰️',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Display origin -> destination
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.02),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withOpacity(0.04)),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.circle, color: AppTheme.primaryOrange, size: 10),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Desde: ${trip.originAddress}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.flag_rounded, color: AppTheme.accentTeal, size: 12),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Hacia: ${trip.destinationAddress}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (driverLocation != null) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.local_shipping, color: AppTheme.primaryAmber, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Fletero en camino: ${driverLocation!.latitude.toStringAsFixed(4)}, ${driverLocation!.longitude.toStringAsFixed(4)}',
+                                  style: const TextStyle(
+                                    color: AppTheme.primaryAmber,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Decorative status pill
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.desktop_windows, color: Colors.white60, size: 12),
+                          SizedBox(width: 4),
+                          Text('Vista Simulada', style: TextStyle(color: Colors.white60, fontSize: 9)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
-                color: AppTheme.primaryAmber,
-                width: 4,
               ),
-            },
-          ),
+            )
+          else
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(trip.originLat, trip.originLng),
+                zoom: 12.0,
+              ),
+              markers: {
+                Marker(
+                  markerId: const MarkerId('origin'),
+                  position: LatLng(trip.originLat, trip.originLng),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+                  infoWindow: InfoWindow(title: 'Origen', snippet: trip.originAddress),
+                ),
+                Marker(
+                  markerId: const MarkerId('destination'),
+                  position: LatLng(trip.destinationLat, trip.destinationLng),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                  infoWindow: InfoWindow(title: 'Destino', snippet: trip.destinationAddress),
+                ),
+                if (driverLocation != null)
+                  Marker(
+                    markerId: const MarkerId('driver'),
+                    position: driverLocation!,
+                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    infoWindow: const InfoWindow(
+                      title: 'Fletero en Tránsito 🚚',
+                      snippet: 'Ubicación actual en vivo',
+                    ),
+                  ),
+              },
+              polylines: {
+                Polyline(
+                  polylineId: const PolylineId('route'),
+                  points: [
+                    LatLng(trip.originLat, trip.originLng),
+                    LatLng(trip.destinationLat, trip.destinationLng),
+                  ],
+                  color: AppTheme.primaryAmber,
+                  width: 4,
+                ),
+              },
+            ),
           // Floating Status Pill
           Positioned(
             top: 16,
