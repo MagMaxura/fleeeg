@@ -43,6 +43,12 @@ class _SplashViewState extends ConsumerState<SplashView> with SingleTickerProvid
     await Future.delayed(const Duration(milliseconds: 2500));
     
     if (!mounted) return;
+
+    // Wait for the auth provider to be fully initialized (either restoring session or confirmed logged out)
+    while (!ref.read(authProvider).isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
+    }
     
     final authState = ref.read(authProvider);
     if (authState.profile != null) {

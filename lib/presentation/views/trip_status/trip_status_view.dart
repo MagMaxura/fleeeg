@@ -372,7 +372,7 @@ class _TripStatusViewState extends ConsumerState<TripStatusView> {
                               reviewCommentController: _reviewCommentController,
                               isSubmittingReview: _isSubmittingReview,
                               onRatingChanged: (rating) => setState(() => _userRating = rating),
-                              onSubmitReview: () => _submitReview(trip.id, trip.driverId!),
+                              onSubmitReview: () => _submitReview(trip.id, trip.driverId ?? ''),
                             ),
                           ],
 

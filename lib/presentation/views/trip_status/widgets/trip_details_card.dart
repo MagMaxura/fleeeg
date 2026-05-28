@@ -74,7 +74,7 @@ class TripDetailsCard extends StatelessWidget {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: url.startsWith('simulated')
+                          child: !url.startsWith('http')
                               ? Container(
                                   color: AppTheme.primaryAmber.withOpacity(0.04),
                                   child: const Center(
@@ -83,7 +83,7 @@ class TripDetailsCard extends StatelessWidget {
                                       children: [
                                         Icon(Icons.inventory_2_outlined, color: AppTheme.primaryAmber, size: 40),
                                         SizedBox(height: 8),
-                                        Text('Foto Simulación 📦', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
+                                        Text('Foto de Carga 📦', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                       ],
                                     ),
                                   ),

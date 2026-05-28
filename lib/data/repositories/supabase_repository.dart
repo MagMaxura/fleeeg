@@ -13,6 +13,8 @@ class SupabaseRepository {
   
   User? get currentUser => _client.auth.currentUser;
 
+  Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
+
   Future<AuthResponse> signIn(String email, String password) async {
     return await _client.auth.signInWithPassword(email: email, password: password);
   }
