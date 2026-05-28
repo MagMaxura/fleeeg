@@ -35,7 +35,7 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final SupabaseRepository _repository;
-  StreamSubscription<AuthState>? _authSubscription;
+  StreamSubscription? _authSubscription;
 
   AuthNotifier(this._repository) : super(AuthState(isInitialized: false)) {
     // Listen to real-time auth state changes to persist and auto-login
