@@ -36,9 +36,14 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final SupabaseRepository _repository;
   StreamSubscription? _authSubscription;
+  String? _loadingUserId;
 
   AuthNotifier(this._repository) : super(AuthState(isInitialized: false)) {
-    // Listen to real-time auth state changes to persist and auto-login
+    _initialize();
+  }
+
+  void _initialize() async {
+    // 1. Listen to real-time auth state changes to persist and auto-login
     _authSubscription = _repository.onAuthStateChange.listen((data) {
       final session = data.session;
       if (session != null) {
@@ -47,9 +52,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState(isInitialized: true);
       }
     });
+
+    // 2. Immediately check if a session is already cached to prevent startup hangs
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        await _loadProfileForUser(session.user.id);
+      } else {
+        // If no session exists and stream hasn't marked initialized yet, mark it
+        if (!state.isInitialized && !state.isLoading) {
+          state = AuthState(isInitialized: true);
+        }
+      }
+    } catch (_) {
+      if (!state.isInitialized) {
+        state = AuthState(isInitialized: true);
+      }
+    }
   }
 
   Future<void> _loadProfileForUser(String userId) async {
+    if (_loadingUserId == userId || state.profile?.id == userId) return;
+    _loadingUserId = userId;
     state = state.copyWith(isLoading: true);
     try {
       final profile = await _repository.getProfile(userId);
@@ -57,6 +81,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       PushNotificationService().registerFcmToken();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString(), isLoading: false, isInitialized: true);
+    } finally {
+      if (_loadingUserId == userId) {
+        _loadingUserId = null;
+      }
     }
   }
 

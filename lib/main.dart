@@ -16,8 +16,8 @@ void main() async {
     anonKey: AppConstants.supabaseAnonKey,
   );
 
-  // Initialize Push Notification Service gracefully
-  await PushNotificationService().initialize();
+  // Initialize Push Notification Service gracefully in the background
+  PushNotificationService().initialize();
 
   runApp(
     const ProviderScope(
