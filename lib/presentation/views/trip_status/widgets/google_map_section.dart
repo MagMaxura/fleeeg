@@ -27,6 +27,8 @@ class _GoogleMapSectionState extends State<GoogleMapSection> {
   double _distanceKm = 0.0;
   int _durationMin = 0;
   bool _isLoadingRoute = true;
+  LatLng? _resolvedOrigin;
+  LatLng? _resolvedDestination;
 
   @override
   void initState() {
@@ -198,6 +200,8 @@ class _GoogleMapSectionState extends State<GoogleMapSection> {
 
             if (mounted) {
               setState(() {
+                _resolvedOrigin = origin;
+                _resolvedDestination = destination;
                 _routePoints = points;
                 _distanceKm = distanceMeters / 1000;
                 _durationMin = (durationSeconds / 60).round();
@@ -217,6 +221,8 @@ class _GoogleMapSectionState extends State<GoogleMapSection> {
     // Premium right-angle Manhattan routing fallback (mimics streets grid of Rosario perfectly, no straight lines)
     if (mounted) {
       setState(() {
+        _resolvedOrigin = origin;
+        _resolvedDestination = destination;
         _routePoints = [
           origin,
           LatLng(origin.latitude, destination.longitude), // Perfect grid intersection corner turn
@@ -234,8 +240,8 @@ class _GoogleMapSectionState extends State<GoogleMapSection> {
     // google_maps_flutter is only implemented for Android, iOS, and Web.
     final bool isMapSupported = kIsWeb || Platform.isAndroid || Platform.isIOS;
 
-    final origin = _resolveCoordinates(widget.trip.originAddress, widget.trip.originLat, widget.trip.originLng, isOrigin: true);
-    final destination = _resolveCoordinates(widget.trip.destinationAddress, widget.trip.destinationLat, widget.trip.destinationLng, isOrigin: false);
+    final origin = _resolvedOrigin ?? _resolveCoordinates(widget.trip.originAddress, widget.trip.originLat, widget.trip.originLng, isOrigin: true);
+    final destination = _resolvedDestination ?? _resolveCoordinates(widget.trip.destinationAddress, widget.trip.destinationLat, widget.trip.destinationLng, isOrigin: false);
 
     // Calculate elegant center coordinate to frame the route perfectly
     final centerLat = (origin.latitude + destination.latitude) / 2;
