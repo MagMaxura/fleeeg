@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io' show HttpClient;
+import 'dart:convert' show jsonDecode, utf8;
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LocationService {
@@ -33,7 +36,7 @@ class LocationService {
 
       return true;
     } catch (e) {
-      // Return false if running in sandbox environments where Geolocator commands fail nativly
+      // Return false if running in sandbox environments where Geolocator commands fail naturally
       return false;
     }
   }
@@ -104,22 +107,121 @@ class LocationService {
     }
   }
 
-  /// Simulated Premium Movement for Sandbox & Tester validation
-  void _startSimulatedTracking(String driverId, int tripId) {
-    // Buenos Aires coordinates simulation path (from microcentro outwards)
-    final List<Map<String, double>> routePoints = [
-      {'lat': -34.6037, 'lng': -58.3816},
-      {'lat': -34.6055, 'lng': -58.3900},
-      {'lat': -34.6080, 'lng': -58.4000},
-      {'lat': -34.6120, 'lng': -58.4120},
-      {'lat': -34.6150, 'lng': -58.4230},
-      {'lat': -34.6185, 'lng': -58.4350},
-      {'lat': -34.6220, 'lng': -58.4480},
+  LatLng _resolveCoordinates(String address, double dbLat, double dbLng, {required bool isOrigin}) {
+    if (dbLat != 0.0 && dbLng != 0.0) {
+      return LatLng(dbLat, dbLng);
+    }
+    final cleanAddress = address.toLowerCase();
+    
+    if (cleanAddress.contains('paraguay 1863') || cleanAddress.contains('paraguay1863')) {
+      return const LatLng(-32.9545, -60.6596);
+    }
+    if (cleanAddress.contains('francia 805') || cleanAddress.contains('av. francia 805') || cleanAddress.contains('avenida francia 805')) {
+      return const LatLng(-32.9392, -60.6601);
+    }
+    if (cleanAddress.contains('pellegrini 1200')) {
+      return const LatLng(-32.9550, -60.6550);
+    }
+    if (cleanAddress.contains('oroño 500')) {
+      return const LatLng(-32.9450, -60.6450);
+    }
+    if (cleanAddress.contains('de mayo 500') || cleanAddress.contains('av. de mayo 500')) {
+      return const LatLng(-34.6080, -58.3830);
+    }
+    if (cleanAddress.contains('caferata')) {
+      return const LatLng(-32.9348, -60.6865); // Caferata, Rosario
+    }
+    if (cleanAddress.contains('catamarca 1440')) {
+      return const LatLng(-32.9366, -60.6483); // Catamarca 1440, Rosario
+    }
+    
+    if (cleanAddress.contains('rosario')) {
+      return isOrigin 
+          ? const LatLng(-32.9500, -60.6600) 
+          : const LatLng(-32.9400, -60.6500);
+    }
+    return isOrigin ? const LatLng(-32.9500, -60.6600) : const LatLng(-32.9400, -60.6500);
+  }
+
+  Future<List<LatLng>> _fetchOSRMRoute(LatLng origin, LatLng destination) async {
+    final url = 'http://router.project-osrm.org/route/v1/driving/'
+        '${origin.longitude},${origin.latitude};'
+        '${destination.longitude},${destination.latitude}'
+        '?overview=full&geometries=geojson';
+        
+    final httpClient = HttpClient();
+    try {
+      final uri = Uri.parse(url);
+      final request = await httpClient.getUrl(uri);
+      final response = await request.close();
+      
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final data = jsonDecode(responseBody) as Map<String, dynamic>;
+        
+        if (data['code'] == 'Ok' && data['routes'] != null && (data['routes'] as List).isNotEmpty) {
+          final route = data['routes'][0];
+          final geometry = route['geometry'];
+          if (geometry != null && geometry['coordinates'] != null) {
+            final coordinates = geometry['coordinates'] as List;
+            return coordinates.map((c) {
+              final lng = (c[0] as num).toDouble();
+              final lat = (c[1] as num).toDouble();
+              return LatLng(lat, lng);
+            }).toList();
+          }
+        }
+      }
+    } catch (e) {
+      // Quietly swallow
+    } finally {
+      httpClient.close();
+    }
+    
+    // Simple 5-step fallback path
+    return [
+      origin,
+      LatLng((origin.latitude * 0.75 + destination.latitude * 0.25), (origin.longitude * 0.75 + destination.longitude * 0.25)),
+      LatLng((origin.latitude * 0.5 + destination.latitude * 0.5), (origin.longitude * 0.5 + destination.longitude * 0.5)),
+      LatLng((origin.latitude * 0.25 + destination.latitude * 0.75), (origin.longitude * 0.25 + destination.longitude * 0.75)),
+      destination
     ];
+  }
+
+  /// Simulated Premium Movement along actual OSRM road coordinates
+  void _startSimulatedTracking(String driverId, int tripId) async {
+    List<LatLng> routePoints = [];
+    LatLng origin = const LatLng(-32.9500, -60.6600);
+    LatLng destination = const LatLng(-32.9400, -60.6500);
+
+    try {
+      // Retrieve actual addresses and coordinates from trips table
+      final response = await _client.from('trips').select().eq('id', tripId).single();
+      final String originAddress = response['origin'] ?? response['origin_address'] ?? '';
+      final String destinationAddress = response['destination'] ?? response['destination_address'] ?? '';
+      final double dbOriginLat = ((response['origin_lat'] ?? 0.0) as num).toDouble();
+      final double dbOriginLng = ((response['origin_lng'] ?? 0.0) as num).toDouble();
+      final double dbDestLat = ((response['destination_lat'] ?? 0.0) as num).toDouble();
+      final double dbDestLng = ((response['destination_lng'] ?? 0.0) as num).toDouble();
+
+      origin = _resolveCoordinates(originAddress, dbOriginLat, dbOriginLng, isOrigin: true);
+      destination = _resolveCoordinates(destinationAddress, dbDestLat, dbDestLng, isOrigin: false);
+
+      // Query actual street turns trajectory
+      routePoints = await _fetchOSRMRoute(origin, destination);
+    } catch (e) {
+      // Direct 3-step fallback if DB or OSRM query fails
+      routePoints = [
+        origin,
+        LatLng((origin.latitude + destination.latitude) / 2, (origin.longitude + destination.longitude) / 2),
+        destination
+      ];
+    }
 
     int currentIndex = 0;
     
-    _simulationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    _simulationTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (routePoints.isEmpty) return;
       if (currentIndex >= routePoints.length) {
         currentIndex = 0; // Restart loop
       }
@@ -127,8 +229,8 @@ class LocationService {
       final point = routePoints[currentIndex];
       await _updateLocationInSupabase(
         driverId: driverId,
-        latitude: point['lat']!,
-        longitude: point['lng']!,
+        latitude: point.latitude,
+        longitude: point.longitude,
         tripId: tripId,
       );
 
